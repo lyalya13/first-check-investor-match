@@ -154,7 +154,7 @@ function SourceLink({ url, label = "source" }: { url?: string | undefined; label
 }
 
 function InvestorCard({ rank, inv, founder, query, starred, onStar, message, onMessage }: {
-  rank: number; inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string; onMessage: (m: string) => void;
+  rank: number; inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string | undefined; onMessage: (m: string) => void;
 }) {
   const draft = useServerFn(draftMessage);
   const [open, setOpen] = useState(false);

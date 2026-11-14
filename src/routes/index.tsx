@@ -49,7 +49,7 @@ function Index() {
     e.preventDefault();
     setLoading(true); setResult(null);
     try { setResult(await find({ data: { ...form, website: form.website || undefined } })); }
-    catch { setResult({ ok: false, error: "Something went wrong. Please try again.", investors: [], queries: [], dealCount: 0 }); }
+    catch { setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
     finally { setLoading(false); }
   };
 
@@ -148,13 +148,13 @@ function LoadingState() {
   );
 }
 
-function SourceLink({ url, label = "source" }: { url?: string; label?: string }) {
+function SourceLink({ url, label = "source" }: { url?: string | undefined; label?: string }) {
   if (!url) return null;
   return <a href={url} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
 }
 
 function InvestorCard({ rank, inv, founder, query, starred, onStar, message, onMessage }: {
-  rank: number; inv: InvestorResult; founder: FounderInput; query?: string; starred: boolean; onStar: () => void; message?: string; onMessage: (m: string) => void;
+  rank: number; inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string; onMessage: (m: string) => void;
 }) {
   const draft = useServerFn(draftMessage);
   const [open, setOpen] = useState(false);

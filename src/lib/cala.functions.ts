@@ -131,7 +131,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       return { ok: true as const, investors, queries, dealCount: deals.length };
     } catch (e) {
       const msg = (e as Error).message;
-      return { ok: false as const, error: msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 };
+      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
     }
   });
 

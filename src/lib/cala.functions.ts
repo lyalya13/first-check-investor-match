@@ -87,8 +87,8 @@ export const findInvestors = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const round = data.stage === "seed" ? "Seed" : "Pre-Seed";
-      const industry = data.industry.split("/")[0].trim();
-      const region = data.region.split("/")[0].trim();
+      const industry = (data.industry.split("/")[0] ?? "").trim();
+      const region = (data.region.split("/")[0] ?? "").trim();
       const queries: string[] = [];
       let deals: Deal[] = [];
       let raw: any = null;

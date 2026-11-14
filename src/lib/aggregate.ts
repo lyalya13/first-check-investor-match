@@ -1,10 +1,10 @@
 export type Deal = {
   company: string;
   investors: string[];
-  lead?: string;
-  amount?: number;
-  date?: string;
-  source?: string;
+  lead?: string | undefined;
+  amount?: number | undefined;
+  date?: string | undefined;
+  source?: string | undefined;
 };
 
 export type InvestorAgg = {
@@ -22,7 +22,7 @@ function median(xs: number[]): number | null {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 }
 
 /** Active = latest deal within the last 12 months of `now`. */

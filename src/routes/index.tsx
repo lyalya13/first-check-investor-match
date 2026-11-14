@@ -128,7 +128,7 @@ function Index() {
 }
 
 function whyFit(i: InvestorResult, f: FounderInput) {
-  return `Backed ${i.deals} ${f.stage === "seed" ? "seed-stage" : "early"} ${f.industry.split("/")[0].trim()} deal${i.deals > 1 ? "s" : ""} in ${f.region.split("/")[0].trim()}${i.led ? `, leading ${i.led}` : ""}${i.active ? ", still active" : ""}.`;
+  return `Backed ${i.deals} ${f.stage === "seed" ? "seed-stage" : "early"} ${f.industry.split("/")[0]?.trim()} deal${i.deals > 1 ? "s" : ""} in ${f.region.split("/")[0]?.trim()}${i.led ? `, leading ${i.led}` : ""}${i.active ? ", still active" : ""}.`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

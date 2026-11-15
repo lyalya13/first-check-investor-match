@@ -1,4 +1,4 @@
-import { selectedModels, selectedRegions, type BusinessModel } from "./fundraising";
+import { BUSINESS_MODELS, selectedModels, selectedRegions, type BusinessModel } from "./fundraising";
 import type { Deal } from "./aggregate";
 
 export const REGIONS = ["All", "Nordics", "DACH", "UK & Ireland", "France & Benelux", "Southern Europe", "CEE", "North America", "Asia", "Other"] as const;
@@ -32,7 +32,7 @@ export function businessModels(deals: Deal[]) {
 }
 export function filterBusinessModel<T extends { matchedDeals: Deal[] }>(rows: T[], model: BusinessModel | "both" | BusinessModel[]) {
   const models = Array.isArray(model) ? model : model === "both" ? [] : [model];
-  return !models.length ? rows : rows.filter((row) => models.some((m) => businessModels(row.matchedDeals).includes(m)));
+  return !models.length || BUSINESS_MODELS.every((m) => models.includes(m)) ? rows : rows.filter((row) => models.some((m) => businessModels(row.matchedDeals).includes(m)));
 }
 
 export function filterByRegion<T extends { region: InvestorRegion }>(rows: T[], filter: RegionFilter): T[] {

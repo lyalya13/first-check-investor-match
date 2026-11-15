@@ -6,7 +6,7 @@ describe("fundraising amount rules", () => {
   it("starts with angels, grants and accelerators up to 50K", () => { expect(guidanceTier(50000)).toBe("small"); expect(guidanceTier(50001)).toBe("angels"); });
   it("starts with angel networks up to 150K", () => { expect(guidanceTier(150000)).toBe("angels"); expect(guidanceTier(150001)).toBe("preseed"); });
   it("starts with angels and pre-seed funds up to 1M", () => { expect(guidanceTier(1000000)).toBe("preseed"); expect(guidanceTier(1000001)).toBe("seed"); });
-  it("defaults to angels first through 150K", () => { expect(defaultFilter(40000)).toBe("Angels first"); expect(defaultFilter(150000)).toBe("Angels first"); expect(defaultFilter(150001)).toBe("All"); });
+  it("defaults to All regardless of raise size", () => { expect(defaultFilter(40000)).toBe("All"); expect(defaultFilter(150000)).toBe("All"); expect(defaultFilter(150001)).toBe("All"); });
   it("flags only tickets strictly above five times the raise", () => { expect(ticketFit(200001, 40000)).toBe("bigger"); expect(ticketFit(200000, 40000)).toBe("fits"); });
   it("shows nothing for an unknown ticket or zero raise", () => { expect(ticketFit(null, 40000)).toBeNull(); expect(ticketFit(100, 0)).toBeNull(); });
   it("orders angels first and filters funds", () => { const rows = [{type: "fund" as const}, {type: "angel" as const}]; expect(filterInvestors(rows, "Angels first")[0]?.type).toBe("angel"); expect(filterInvestors(rows, "Funds")).toEqual([rows[0]]); });

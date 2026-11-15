@@ -61,6 +61,7 @@ export type InvestorResult = ReturnType<typeof aggregateInvestors>[number] & {
 export const findInvestors = createServerFn({ method: "POST" })
   .inputValidator((d) => founderSchema.parse(d))
   .handler(async ({ data }) => {
+    const searchStarted = performance.now();
     try {
       const { readSearchCache, storeSearchCache } = await import("./cala-cache.server");
       const started = performance.now();
@@ -112,6 +113,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       console.log("[cala timing] grouped search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - started), cached: resolved.cached, deals: resolved.result.dealCount }));
       return { ...resolved.result, investors: resolved.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })), cached: resolved.cached, stale: resolved.stale, fetchedAt: resolved.fetchedAt };
     } catch (e) {
+      console.log("[cala timing] failed search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - searchStarted) }));
       const msg = (e as Error).message;
       return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala's request limit has been reached. Please wait a few minutes before searching again." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
     }

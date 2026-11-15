@@ -29,7 +29,7 @@ export async function resolveCachedSearch<T>(options: {
   if (entry && (fresh || entry.example)) return { result: entry.result, cached: true, stale: !fresh, fetchedAt: entry.fetchedAt };
   try {
     const result = await options.fetchLive();
-    await options.save(result).catch(() => undefined);
+    try { await options.save(result); } catch { /* A cache outage must not discard a live result. */ }
     return { result, cached: false, stale: false, fetchedAt: new Date(now).toISOString() };
   } catch (error) {
     if (entry) return { result: entry.result, cached: true, stale: true, fetchedAt: entry.fetchedAt };

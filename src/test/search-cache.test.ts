@@ -30,7 +30,7 @@ describe("24-hour Cala cache", () => {
     expect(result.result).toBe("saved"); expect(result.stale).toBe(true);
   });
   it("stores refreshed successful results", async () => {
-    const save = vi.fn();
+    const save = vi.fn(async () => undefined);
     const result = await resolveCachedSearch({ cached: null, fetchLive: async () => "live", save, now });
     expect(save).toHaveBeenCalledWith("live"); expect(result.cached).toBe(false);
   });

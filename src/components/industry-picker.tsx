@@ -26,7 +26,7 @@ export function IndustryPicker({ category, niches, onChange }: {
       <div className="flex flex-wrap gap-2" role="group" aria-label={`${category} niches`}>
         {options.map((name) => {
           const active = selected.some((n) => n.category === category && n.name === name);
-          return <Button type="button" size="sm" key={name} variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => toggle(name)} className="h-auto min-h-9 whitespace-normal text-left">{active && <Check className="size-3 shrink-0" />}{name}</Button>;
+          return <Button type="button" size="sm" key={name} variant={active ? "secondary" : "outline"} aria-pressed={active} onClick={() => toggle(name)} className="h-auto min-h-9 whitespace-normal text-left">{active && <Check className="size-3 shrink-0" />}{name}</Button>;
         })}
       </div>
       <div className="flex gap-2">

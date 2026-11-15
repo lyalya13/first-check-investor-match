@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cala_search_cache: {
+        Row: {
+          fetched_at: string
+          is_example: boolean
+          result: Json
+          search_key: string
+        }
+        Insert: {
+          fetched_at?: string
+          is_example?: boolean
+          result: Json
+          search_key: string
+        }
+        Update: {
+          fetched_at?: string
+          is_example?: boolean
+          result?: Json
+          search_key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

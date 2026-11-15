@@ -19,7 +19,7 @@ export function IndustryPicker({ category, niches, onChange }: {
   };
   return <div className="space-y-3">
     <p className="text-xs leading-5 text-muted-foreground">Pick all that fit your startup. More precise niches give better matches.</p>
-    <select aria-label="Industry category" required value={category} onChange={(e) => onChange(e.target.value as Category, selected)} className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+    <select aria-label="Industry category" required value={category} onChange={(e) => onChange(e.target.value as Category, selected)} className="h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
       <option value="" disabled>Choose a broad category</option>
       {Object.keys(CATEGORIES).map((c) => <option key={c}>{c}</option>)}
     </select>

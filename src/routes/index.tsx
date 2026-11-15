@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, type RegionFilter } from "@/lib/matching";
 import { Skeleton } from "@/components/ui/skeleton";
-import { findInvestors, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
+import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
+import { progressiveMap } from "@/lib/search-performance";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
 import { guidanceTier, defaultFilter, filterInvestors, ticketFit, type InvestorFilter } from "@/lib/fundraising";
@@ -36,6 +37,8 @@ type Result = Awaited<ReturnType<typeof findInvestors>>;
 
 function Index() {
   const find = useServerFn(findInvestors);
+  const enrich = useServerFn(enrichInvestor);
+  const finish = useServerFn(finishInvestorSearch);
   const [form, setForm] = useState<FounderInput>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
@@ -47,7 +50,26 @@ function Index() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setResult(null); setStarred({}); setMessages({}); setFilter(defaultFilter(form.amount)); setRegionFilter("All");
-    try { setResult(await find({ data: { ...form, website: form.website || undefined } })); }
+    try {
+      const started = performance.now();
+      const input = { ...form, website: form.website || undefined };
+      const grouped = await find({ data: input });
+      setResult(grouped);
+      if (grouped.ok && grouped.enrichmentPending) {
+        await progressiveMap(grouped.investors, async (inv) => {
+          try { return await enrich({ data: { founder: input, name: inv.name } }); }
+          catch { return { ok: false as const }; }
+        }, (update, inv) => {
+          setResult((current) => current?.ok ? { ...current,
+            partial: current.partial || !update.ok || (update.ok && update.partial),
+            investors: current.investors.map((row) => row.name === inv.name && update.ok ? update.investor : row),
+          } : current);
+        });
+        await finish({ data: input }).catch(() => {});
+        setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
+      }
+      console.info("[First Check timing] search", { niches: input.niches.length, elapsedMs: Math.round(performance.now() - started), cached: grouped.ok && grouped.cached });
+    }
     catch { setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
     finally { setLoading(false); }
   };
@@ -84,7 +106,7 @@ function Index() {
             <Field label="Stage">
               <div className="grid grid-cols-2 gap-2">
                 {(["pre-seed", "seed"] as const).map((s) => (
-                  <Button key={s} type="button" variant={form.stage === s ? "default" : "outline"} onClick={() => setForm({ ...form, stage: s })} className="capitalize">{s}</Button>
+                  <Button key={s} type="button" variant={form.stage === s ? "secondary" : "outline"} onClick={() => setForm({ ...form, stage: s })} className="capitalize">{s}</Button>
                 ))}
               </div>
             </Field>
@@ -112,21 +134,23 @@ function Index() {
             <Button variant="ghost" onClick={() => setResult(null)} disabled={loading}><ArrowLeft className="size-4" /> Edit details</Button>
             <Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button>
           </div>
-          {loading && <LoadingState />}
+          {loading && !result && <LoadingState />}
+          {loading && result?.ok && <p role="status" className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Checking each investor's recent activity…</p>}
+          {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
           {result && !result.ok && <div className="border-y py-8 text-muted-foreground">{result.error}</div>}
           {result?.ok && result.investors.length === 0 && (
             <div className="border-y py-8 text-muted-foreground">No matching rounds found. Try a broader industry or region.</div>
           )}
           {result?.ok && result.investors.length > 0 && (
             <>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "default" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "secondary" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "secondary" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
               {result.cached && <p className="mb-3 text-xs text-muted-foreground">Saved Cala results · {result.fetchedAt.slice(0, 10)}{result.stale ? " · Last available results" : ""}</p>}
               {result.broadened && <p className="mb-4 text-sm text-muted-foreground">Broader category matches included: fewer than 5 niche deals were found.</p>}
               {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No investors found with these filters.</p>}
               <h2 className="mb-2 mt-7 text-xs font-semibold text-muted-foreground">Who to ask first</h2>
-              <ol className="divide-y border-y">
+              <ol className="divide-y-[1.5px] border-[1.5px]">
                 {visibleInvestors.map((inv) => (
                   <InvestorCard key={inv.name} inv={inv} founder={form} query={result.queries.join("\n\n")}
                     starred={!!starred[inv.name]} onStar={() => setStarred((s) => ({ ...s, [inv.name]: !s[inv.name] }))}
@@ -210,7 +234,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       <Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span><Badge variant="outline">{match.level}</Badge>{inv.active && <Badge className="bg-success text-success-foreground hover:bg-success">Active</Badge>}</span>
+          <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span><Badge variant={match.level === "High match" ? "high" : match.level === "Medium match" ? "medium" : "low"}>{match.level}</Badge>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
           <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} early-stage startup{inv.deals === 1 ? "" : "s"} · {niches.join(" / ") || "Unknown"} · {inv.region || "Unknown"}</span>
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -220,7 +244,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
           <Badge variant="outline" className="capitalize">{inv.type}</Badge>
           {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</Badge>}
           {fit && <Badge variant="outline">{fit === "bigger" ? "Usually backs bigger rounds" : "Similar round size"}</Badge>}
-          <Button variant="ghost" size="icon" title={starred ? "Remove from shortlist" : "Add to shortlist"} aria-label={starred ? "Remove from shortlist" : "Add to shortlist"} onClick={onStar}><Star className={starred ? "fill-foreground" : ""} /></Button>
+          <Button variant="ghost" size="icon" title={starred ? "Remove from shortlist" : "Add to shortlist"} aria-label={starred ? "Remove from shortlist" : "Add to shortlist"} onClick={onStar}><Star className={starred ? "fill-star text-star" : ""} /></Button>
         </div>
       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
         <div><dt className="text-muted-foreground">Matching deals</dt><dd className="font-medium">Led {inv.led} of {inv.deals}<SourceLink url={dealSrc} /></dd></div>

@@ -1,4 +1,10 @@
 # First Check improvements
+- [x] Swept remaining search failure paths: preserve grouped results after unexpected errors, stop cancelled queued work, and tolerate individual profile-cache failures.
+- [x] All 105 tests pass; verified cached example, requested search, saving and editable introductions. No existing records, permissions, settings or example data changed.
+- [x] Fix Cala timeouts with bounded concurrency, one retry and partial results; requested input returned PimpUp / three named investors after Cala recovered; cached example returned 11 deals / 10 investors.
+- [x] Clarify saving with toasts and include saved searches in Saved; keep investor type chips visible.
+- [x] Collapse niche choices and add Similar startups with sourced deals and editable warm-intro drafts.
+- [x] All 101 tests pass; verified saving, cached searches, live results and editable intro on mobile/desktop. Cala profile rate limits retain arrived results.
 - [x] Add three-industry niche searches, multiple business models and regions, and all four stages.
 - [x] Add founder-friendly hints, visible guidance and independent investor-type chips.
 - [x] Preserve the real cached example and saved features; 87 tests pass and cached example returns 11 deals / 10 investors; verified at 390px and desktop.

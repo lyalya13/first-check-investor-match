@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { InvestorResult } from "./cala.functions";
+import { isNamedInvestor } from "./cala-data";
 
-export type SearchResult = { ok: true; investors: InvestorResult[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean };
+export type SearchResult = { ok: true; investors: InvestorResult[]; deals?: import("./aggregate").Deal[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean };
 
 export async function readSearchCache(key: string) {
   const url = process.env["SUPABASE_URL"];
@@ -22,6 +23,12 @@ export async function readSearchCache(key: string) {
   if (!data) return null;
   const result = data.result as unknown as SearchResult;
   if (!result?.ok || !Array.isArray(result.investors)) return null;
+  // Old provider snapshots may contain anonymization labels, never actual investor identities.
+  result.investors = result.investors.filter((investor) => isNamedInvestor(investor.name));
+  if (result.deals) {
+    result.deals = result.deals.map((deal) => ({ ...deal, investors: deal.investors.filter(isNamedInvestor), lead: deal.lead && isNamedInvestor(deal.lead) ? deal.lead : undefined })).filter((deal) => deal.investors.length || deal.lead);
+    result.dealCount = result.deals.length;
+  }
   return { result, fetchedAt: data.fetched_at, example: data.is_example };
 }
 

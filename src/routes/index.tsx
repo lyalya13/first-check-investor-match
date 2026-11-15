@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+import { SimilarStartups } from "@/components/similar-startups";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +13,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
 import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { progressiveMap } from "@/lib/search-performance";
+import { preserveArrivedResults } from "@/lib/search-state";
 import { MultiLocationPicker } from "@/components/multi-location-picker";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
@@ -47,7 +50,7 @@ function Index() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [saved, setSaved] = useState<SavedItems>({ searches: [], people: [] });
-  const [tab, setTab] = useState<"results" | "saved">("results");
+  const [tab, setTab] = useState<"results" | "saved" | "startups">("results");
   const [saveModal, setSaveModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [savedName, setSavedName] = useState("");
@@ -61,7 +64,11 @@ function Index() {
     try { if (!writeSavedItems(window.localStorage, items)) setStorageNotice("Saving is unavailable in this browser. Your items remain available until you close this page."); }
     catch { setStorageNotice("Saving is unavailable in this browser. Your items remain available until you close this page."); }
   };
-  const togglePerson = (person: SavedPerson) => persist({ ...saved, people: toggleSavedPerson(saved.people, person) });
+  const togglePerson = (person: SavedPerson) => {
+    const removing = saved.people.some((entry) => entry.id === person.id);
+    persist({ ...saved, people: toggleSavedPerson(saved.people, person) });
+    if (!removing) toast(person.role === "investor" ? "Investor saved" : "Founder saved");
+  };
   const cycleStatus = (id: string) => persist({ ...saved, people: cycleOutreachStatus(saved.people, id) });
   const counts = outreachCounts(saved.people);
   const visibleSaved = filterOutreachStatus(saved.people, statusFilter);
@@ -89,13 +96,16 @@ function Index() {
             partial: current.partial || !update.ok || (update.ok && update.partial),
             investors: current.investors.map((row) => row.name === inv.name && update.ok ? update.investor : row),
           } : current);
+        }, () => run === searchRun.current);
+        if (run !== searchRun.current) return;
+        await finish({ data: input }).catch(() => {
+          if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, partial: true } : current);
         });
-        await finish({ data: input }).catch(() => {});
         if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
       }
       console.info("[First Check timing] search", { niches: input.niches.length, elapsedMs: Math.round(performance.now() - started), cached: grouped.ok && grouped.cached });
     }
-    catch { if (run === searchRun.current) setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
+    catch { if (run === searchRun.current) setResult((current) => preserveArrivedResults(current, { ok: false as const, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 })); }
     finally { if (run === searchRun.current) setLoading(false); }
   };
 
@@ -120,10 +130,15 @@ function Index() {
         <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">Real early-stage deals. Relevant investors. A warmer way to start.</p>
       </header>
 
-      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="People views"><Button role="tab" aria-selected={tab === "results"} variant={tab === "results" ? "secondary" : "outline"} onClick={() => setTab("results")}>Results</Button><Button role="tab" aria-selected={tab === "saved"} variant={tab === "saved" ? "secondary" : "outline"} onClick={() => setTab("saved")}><Bookmark className="size-4" />Saved ({saved.people.length})</Button></div>
+      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="People views"><Button role="tab" aria-selected={tab === "results"} variant={tab === "results" ? "secondary" : "outline"} onClick={() => setTab("results")}>Results</Button><Button role="tab" aria-selected={tab === "saved"} variant={tab === "saved" ? "secondary" : "outline"} onClick={() => setTab("saved")}><Bookmark className="size-4" />Saved ({saved.people.length + saved.searches.length})</Button><Button role="tab" aria-selected={tab === "startups"} variant={tab === "startups" ? "secondary" : "outline"} onClick={() => setTab("startups")}>Similar startups</Button></div>
       {storageNotice && <p role="status" className="mb-4 text-xs text-muted-foreground">{storageNotice}</p>}
+      {tab === "startups" && (result?.ok ? <SimilarStartups investors={result.investors} founder={form} deals={result.deals} /> : <p className="py-6 text-sm text-muted-foreground">{loading ? "Finding similar startups…" : "Run a search to see similar startups and their investors."}</p>)}
       {tab === "saved" && <section>
-        <div className="mb-6 flex items-center justify-between gap-3"><h2 className="font-semibold">Saved people</h2><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" />Export shortlist ({starCount})</Button></div>
+        <h2 className="mb-2 font-semibold">Saved searches</h2>
+        <p className="mb-4 text-sm text-muted-foreground">Your search choices, ready to run again. Saved investors are kept separately below.</p>
+        {!saved.searches.length && <p className="mb-6 text-sm text-muted-foreground">No saved searches yet.</p>}
+        <ul className="mb-8 divide-y">{saved.searches.map((search) => <li key={search.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="break-words font-medium">{search.name}</p><p className="mt-1 text-xs text-muted-foreground">{search.input.industry} · {STAGE_LABELS[search.input.stage]}</p></div><div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" onClick={() => void runSearch(search.input)}>Run search</Button><Button size="icon" variant="ghost" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((entry) => entry.id !== search.id) })}><Trash2 className="size-4" /></Button></div></li>)}</ul>
+        <div className="mb-6 flex items-center justify-between gap-3"><h2 className="font-semibold">Saved investors and founders</h2><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" />Export shortlist ({starCount})</Button></div>
         <p className="mb-4 text-sm text-muted-foreground" aria-label="Outreach counts">{counts["Not contacted"]} not contacted · {counts.Messaged} messaged · {counts.Replied} replied · {counts.Meeting} meeting</p>
         <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Outreach status filter">{(["All", ...OUTREACH_STATUSES] as const).map((status) => <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "outline"} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status}</Button>)}</div>
         {!!saved.people.length && !visibleSaved.length && <p className="py-5 text-sm text-muted-foreground">No saved people with this status.</p>}
@@ -150,6 +165,7 @@ function Index() {
             <Field label="Amount raising (€)" hint="The total you want to raise, not the amount from one investor. This helps suggest who to approach first."><Input aria-label="Amount raising (€)" required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /><AmountTip amount={form.amount} /></Field>
           </div>
           <Field label="Website (optional)" hint="Your startup’s website can give investors more context in your message. It’s fine to leave this blank."><Input aria-label="Website (optional)" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" /></Field>
+          <p className="text-xs leading-5 text-muted-foreground">Save search keeps these choices in this browser. Save investor keeps a person in your shortlist.</p>
           <Button type="button" variant="outline" disabled={!form.description.trim() || !form.category || !selectedRegions(form).length || !form.amount} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button>
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setForm(EXAMPLE)}><Sparkles className="size-4" /> Try with an example</Button>
@@ -162,10 +178,13 @@ function Index() {
         <section>
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <Button variant="ghost" onClick={() => { searchRun.current++; setLoading(false); setResult(null); }}><ArrowLeft className="size-4" /> Edit details</Button>
-            <Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!result?.ok} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button></div>
           </div>
           <FundraisingGuide />
           <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter(defaultPeopleTypes(40000)); }} />
+              <h3 className="mb-1 text-sm font-medium">Investor type</h3><p className="mb-3 text-xs leading-5 text-muted-foreground">Angels usually write the first check. Choose any combination; types are estimated from Cala data and names, with Other when unclear.</p>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{PEOPLE_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter.includes(type) ? "secondary" : "outline"} aria-pressed={typeFilter.includes(type)} onClick={() => setTypeFilter(typeFilter.includes(type) ? typeFilter.filter((t) => t !== type) : [...typeFilter, type])}>{type}</Button>)}<Button size="sm" variant="ghost" onClick={() => setTypeFilter([...PEOPLE_TYPES])}>Show all types</Button></div>
+
           {loading && !result && <LoadingState />}
           {loading && result?.ok && <LoadingState enriching />}
           {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
@@ -176,8 +195,6 @@ function Index() {
           {result?.ok && (
             <>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "secondary" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
-              <h3 className="mb-1 text-sm font-medium">Investor type</h3><p className="mb-3 text-xs leading-5 text-muted-foreground">Angels usually write the first check. Choose any combination; types are estimated from Cala data and names, with Other when unclear.</p>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{PEOPLE_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter.includes(type) ? "secondary" : "outline"} aria-pressed={typeFilter.includes(type)} onClick={() => setTypeFilter(typeFilter.includes(type) ? typeFilter.filter((t) => t !== type) : [...typeFilter, type])}>{type}</Button>)}<Button size="sm" variant="ghost" onClick={() => setTypeFilter([...PEOPLE_TYPES])}>Show all types</Button></div>
               <h3 className="mb-1 text-sm font-medium">Customers of companies they backed</h3><p className="mb-3 text-xs text-muted-foreground">Choose models to narrow the list, or clear them to see everyone.</p>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{BUSINESS_MODELS.map((model) => <Button key={model} size="sm" variant={modelFilter.includes(model) ? "secondary" : "outline"} aria-pressed={modelFilter.includes(model)} onClick={() => setModelFilter(modelFilter.includes(model) ? modelFilter.filter((m) => m !== model) : [...modelFilter, model])}>{model}</Button>)}<Button size="sm" variant="ghost" onClick={() => setModelFilter([])}>All customer models</Button></div>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "secondary" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
@@ -197,7 +214,7 @@ function Index() {
           )}
         </section>
       )}
-      <Dialog open={saveModal} onOpenChange={setSaveModal}><DialogContent><DialogTitle>Save search</DialogTitle><DialogDescription>{form.industry} · {form.stage}</DialogDescription><form onSubmit={(e) => { e.preventDefault(); if (!savedName.trim()) return; persist({ ...saved, searches: [...saved.searches, { id: crypto.randomUUID(), name: savedName.trim(), input: { ...form, niches: form.niches.map((n) => ({ ...n })) } }] }); setSaveModal(false); }} className="space-y-4"><Input aria-label="Search name" autoFocus required maxLength={80} value={savedName} onChange={(e) => setSavedName(e.target.value)} /><Button type="submit"><Bookmark className="size-4" />Save search</Button></form></DialogContent></Dialog>
+      <Dialog open={saveModal} onOpenChange={setSaveModal}><DialogContent><DialogTitle>Save search</DialogTitle><DialogDescription>Save these search choices in this browser, not the investors. {form.industry} · {form.stage}</DialogDescription><form onSubmit={(e) => { e.preventDefault(); if (!savedName.trim()) return; persist({ ...saved, searches: [...saved.searches, { id: crypto.randomUUID(), name: savedName.trim(), input: { ...form, niches: form.niches.map((n) => ({ ...n })) } }] }); setSaveModal(false); toast("Search saved"); }} className="space-y-4"><Input aria-label="Search name" autoFocus required maxLength={80} value={savedName} onChange={(e) => setSavedName(e.target.value)} /><Button type="submit"><Bookmark className="size-4" />Save search</Button></form></DialogContent></Dialog>
     </main>
   );
 }

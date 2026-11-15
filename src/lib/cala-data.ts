@@ -3,6 +3,9 @@ import { BUSINESS_MODELS } from "./fundraising";
 import { safeUrl } from "./matching";
 
 type Row = Record<string, any>;
+export function isNamedInvestor(name: string): boolean {
+  return !!name.trim() && !/^(?:not disclosed|not publicly disclosed|undisclosed(?: investors?)?|unknown|null|n\/a|anonymous(?: investors?)?|angel investors?|\+?\d+ others?|.*team members?)$/i.test(name.trim());
+}
 const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 function field(row: Row, names: string[]) {
   for (const name of names) {
@@ -21,7 +24,7 @@ function text(value: any): string | undefined {
 function names(value: any): string[] {
   if (Array.isArray(value)) return value.flatMap(names);
   if (value && typeof value === "object") return names(value.name ?? value.value ?? value.entities ?? []);
-  if (typeof value === "string") return value.replace(/angel investors? including\s*/gi, "").split(/[,;]|\s+and\s+/).map((s) => s.replace(/\s*\([^)]*\)/g, "").trim()).filter((s) => !!s && !/^(?:angel investors?|\+?\d+ others?|.*team members?|undisclosed|unknown|null)$/i.test(s));
+  if (typeof value === "string") return value.replace(/angel investors? including\s*/gi, "").split(/[,;]|\s+and\s+/).map((s) => s.replace(/\s*\([^)]*\)/g, "").trim()).filter(isNamedInvestor);
   return [];
 }
 export function amountValue(value: any): number | undefined {

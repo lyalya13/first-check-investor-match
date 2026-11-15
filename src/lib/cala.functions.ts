@@ -125,7 +125,7 @@ export const enrichInvestor = createServerFn({ method: "POST" })
     const key = searchCacheKey(data.founder);
     const cached = await readSearchCache(key);
     const inv = cached?.result.investors.find((row) => row.name === data.name);
-    if (!inv) return { ok: false as const };
+    if (!cached || !inv) return { ok: false as const };
     const profileKey = JSON.stringify({ search: key, investor: inv.name, enrichment: 1 });
     const saved = await readSearchCache(profileKey);
     if (saved && !saved.result.enrichmentPending && (await import("./search-cache")).cacheIsFresh(saved.fetchedAt)) {
@@ -138,7 +138,10 @@ export const enrichInvestor = createServerFn({ method: "POST" })
       cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: inv.summaryQuery }) })
         .then((raw) => ({ text: answerOf(raw), sources: sourcesOf(raw) })).catch(() => { partial = true; return { text: "", sources: [] }; }),
     ]);
-    const investor: InvestorResult = { ...inv, type: investorType(inv.name, summary.text), summary: summary.text, summarySources: summary.sources, location: profile.location, region: regionOf(profile.location), linkedin: profile.linkedin, profileSource: profile.source };
+    const previous = saved?.result.investors[0] ?? inv;
+    const text = summary.text || previous.summary;
+    const location = profile.location || previous.location;
+    const investor: InvestorResult = { ...inv, type: investorType(inv.name, text), summary: text, summarySources: summary.sources.length ? summary.sources : previous.summarySources, location, region: regionOf(location), linkedin: profile.linkedin || previous.linkedin, profileSource: profile.source || previous.profileSource };
     await storeSearchCache(profileKey, { ...cached.result, investors: [investor], enrichmentPending: false, partial }, false).catch(() => {});
     return { ok: true as const, investor, partial };
   });

@@ -35,6 +35,12 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-star: var(--star);
+  --color-selection-border: var(--selection-border);
+  --color-match-high: var(--match-high);
+  --color-match-medium: var(--match-medium);
+  --color-match-low: var(--match-low);
+  --color-skeleton: var(--skeleton);
+  --color-skeleton-shimmer: var(--skeleton-shimmer);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -81,27 +87,33 @@
   color-scheme: dark;
   --radius: 0.5rem;
   --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
+  --foreground: oklch(0.95877226 0.01269568 86.82980);
   --card: oklch(0.17764 0 0);
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
-  --primary: oklch(1 0 0);
+  --primary: var(--foreground);
   --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.71 0.051 139);
-  --secondary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.28454209 0.13083829 262.27919);
+  --secondary-foreground: var(--foreground);
   --muted: var(--card);
-  --muted-foreground: oklch(0.78264 0 0);
+  --muted-foreground: oklch(0.76539084 0.01684913 82.78852);
   --accent: var(--secondary);
   --accent-foreground: var(--secondary-foreground);
   --destructive: var(--foreground);
   --destructive-foreground: var(--background);
   --success: var(--secondary);
   --success-foreground: var(--secondary-foreground);
-  --star: var(--foreground);
-  --border: oklch(0.25196 0 0);
-  --input: var(--muted-foreground);
-  --ring: var(--secondary);
+  --star: oklch(0.74989685 0.08544906 82.07680);
+  --match-high: var(--star);
+  --match-medium: oklch(0.81019976 0.01112234 286.14887);
+  --match-low: oklch(0.63342893 0.00000002 89.87556);
+  --border: oklch(0.28501740 0.00000001 89.87556);
+  --input: oklch(0.51070181 0.01090284 62.42921);
+  --selection-border: oklch(0.49897902 0.17884430 266.86832);
+  --ring: var(--selection-border);
+  --skeleton: oklch(0.20019309 0.00000001 89.87556);
+  --skeleton-shimmer: oklch(0.24353474 0.00000001 89.87556);
   --chart-1: var(--secondary);
   --chart-2: var(--foreground);
   --chart-3: var(--muted-foreground);
@@ -131,6 +143,8 @@
 }
 
 @keyframes pulse-soft { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
+@keyframes skeleton-shimmer { 0%,100% { background-color: var(--skeleton); } 50% { background-color: var(--skeleton-shimmer); } }
+@utility skeleton-shimmer { animation: skeleton-shimmer 2s ease-in-out infinite; }
 @layer utilities {
   .animate-pulse-soft { animation: pulse-soft 1.6s ease-in-out infinite; }
 }

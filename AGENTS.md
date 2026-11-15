@@ -39,3 +39,5 @@ use the editor.
 - Compute matches, region filtering and LinkedIn fallbacks in a pure shared module; score explicit Cala deal niches rather than query provenance to avoid unsupported matches.
 - Version cache keys when the provider result shape changes so the durable example and live results share the same enrichment fields.
 - Keep founder-intro drafts deterministic and editable using only returned portfolio relationships; never ask AI to supply missing founder facts.
+- Return cached provider-produced grouped deals before enrichment; enrich each investor in its own parallel invocation and consolidate server-owned profile cache rows, so progressive updates never accept caller-supplied facts.
+- Limit Cala calls to 20 seconds and six concurrent outbound requests per invocation; avoid retries on the interactive path so timeouts do not multiply.

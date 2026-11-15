@@ -7,17 +7,19 @@ function field(row: Row, names: string[]) {
     const key = Object.keys(row).find((k) => normalized(k) === normalized(name));
     if (key) return row[key];
   }
+  return undefined;
 }
 function text(value: any): string | undefined {
   if (typeof value === "string") return value.trim() || undefined;
   if (typeof value === "number") return String(value);
   if (Array.isArray(value)) return text(value[0]);
   if (value && typeof value === "object") return text(value.name ?? value.title ?? value.value ?? value.url);
+  return undefined;
 }
 function names(value: any): string[] {
   if (Array.isArray(value)) return value.flatMap(names);
   if (value && typeof value === "object") return names(value.name ?? value.value ?? value.entities ?? []);
-  if (typeof value === "string") return value.split(/[,;]|\s+and\s+/).map((s) => s.trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(/[,;]|\s+and\s+/).map((s) => s.replace(/\s*\([^)]*\)/g, "").trim()).filter((s) => !!s && !/^(?:angel investors?|\+?\d+ others?|.*team members?|undisclosed|unknown)$/i.test(s));
   return [];
 }
 export function amountValue(value: any): number | undefined {
@@ -36,13 +38,14 @@ export function responseRows(data: any): Row[] {
 }
 export function toDeals(data: any, niche: string): Deal[] {
   return responseRows(data).flatMap((r) => {
-    const o = { ...r, ...(r.properties ?? r.fields ?? r.attributes ?? {}) };
+    const o = { ...r, ...(r['properties'] ?? r['fields'] ?? r['attributes'] ?? {}) };
     const company = text(field(o, ["company", "company_name", "startup", "organization", "name"])) ?? "";
     const investors = names(field(o, ["investors", "investor", "participating_investors", "investor_names"]));
     const lead = names(field(o, ["lead_investor", "lead_investors", "lead"])).join(", ") || undefined;
     const date = text(field(o, ["date", "announced_date", "announcement_date", "funding_date", "announced_on"]));
     const source = text(field(o, ["source", "source_url", "url", "sources"]));
-    const amount = amountValue(field(o, ["amount", "amount_raised", "raised", "money_raised", "funding_amount"]));
+    const rawAmount = field(o, ["amount", "amount_raised", "raised", "money_raised", "funding_amount"]);
+    const amount = typeof rawAmount === "string" && /\$|£|DKK|SEK|NOK|USD|GBP/i.test(rawAmount) && !/€|EUR/i.test(rawAmount) ? undefined : amountValue(rawAmount);
     if (!company || (!investors.length && !lead)) return [];
     return [{ company, investors, lead, date, source, amount, niches: [niche] }];
   });
@@ -65,3 +68,9 @@ export function mergeDeals(deals: Deal[]): Deal[] {
   return [...merged.values()];
 }
 export const MIN_NICHE_DEALS = 5;
+
+export function investorType(name: string, profile: string): "angel" | "fund" {
+  const intro = profile.slice(0, 650);
+  return /capital|ventures|\bvc\b|fund|partners|invest|labs|angels|group|holding|\bab\b|gmbh|ltd|inc/i.test(name)
+    || /venture capital|private equity|investment (?:firm|arm|company)|venture (?:firm|fund)|accelerator|angel network/i.test(intro) ? "fund" : "angel";
+}

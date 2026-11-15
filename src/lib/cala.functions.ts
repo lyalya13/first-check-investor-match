@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { aggregateInvestors, type Deal } from "./aggregate";
 import { CATEGORIES } from "./fundraising";
-import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS } from "./cala-data";
+import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS, investorType } from "./cala-data";
 
 const BASE = "https://api.cala.ai/v1";
 
@@ -32,29 +32,6 @@ async function cala(path: string, init?: RequestInit): Promise<any> {
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 
-const str = (v: any): string | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === "string") return v;
-  if (typeof v === "number") return String(v);
-  if (typeof v === "object") return v.name ?? v.title ?? v.value ?? undefined;
-  return undefined;
-};
-const arr = (v: any): string[] => {
-  if (!v) return [];
-  if (Array.isArray(v)) return v.map(str).filter((x): x is string => !!x);
-  if (typeof v === "string") return v.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-  const s = str(v); return s ? [s] : [];
-};
-const num = (v: any): number | undefined => {
-  if (typeof v === "number") return v;
-  if (typeof v === "string") { const n = parseFloat(v.replace(/[^0-9.]/g, "")); if (!isNaN(n)) return n; }
-  if (v && typeof v === "object") return num(v.amount ?? v.value);
-  return undefined;
-};
-function pick(o: any, keys: string[]) {
-  for (const k of Object.keys(o ?? {})) if (keys.some((x) => k.toLowerCase().includes(x))) return o[k];
-  return undefined;
-}
 function sourcesOf(data: any): { title: string; url: string }[] {
   const s = data?.sources ?? data?.citations ?? data?.references ?? [];
   if (!Array.isArray(s)) return [];
@@ -89,7 +66,7 @@ export const findInvestors = createServerFn({ method: "POST" })
           successfulQueries++;
           const parsed = toDeals(raw, niche);
           const rows = responseRows(raw);
-          diagnostics.push({ niche, fields: [...new Set(rows.flatMap((r) => Object.keys(r.properties ?? r.fields ?? r)))], rows: rows.length, parsed: parsed.length });
+          diagnostics.push({ niche, fields: [...new Set(rows.flatMap((r) => Object.keys(r['properties'] ?? r['fields'] ?? r)))], rows: rows.length, parsed: parsed.length });
           return parsed;
         } catch (e) {
           console.error(`[cala] Query failed for ${niche}`, (e as Error).message);
@@ -112,8 +89,7 @@ export const findInvestors = createServerFn({ method: "POST" })
         const q = `${inv.name} recent investments and investment focus`;
         let summary = "", src: { title: string; url: string }[] = [];
         try { const r = await cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: q }) }); summary = answerOf(r); src = sourcesOf(r); } catch {}
-        const looksFund = /capital|ventures|vc|fund|partners|invest|labs|angels|group|holding|\bab\b|gmbh|ltd|inc/i.test(inv.name);
-        return { ...inv, type: looksFund ? "fund" : "angel", summary, summarySources: src, summaryQuery: q };
+        return { ...inv, type: investorType(inv.name, summary), summary, summarySources: src, summaryQuery: q };
       }));
 
       return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened };

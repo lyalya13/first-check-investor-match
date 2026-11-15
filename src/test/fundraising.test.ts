@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultFilter, guidanceTier, ticketFit, filterInvestors, CATEGORIES } from "@/lib/fundraising";
-import { mergeDeals, toDeals, amountValue, MIN_NICHE_DEALS } from "@/lib/cala-data";
+import { mergeDeals, toDeals, amountValue, MIN_NICHE_DEALS, investorType } from "@/lib/cala-data";
 
 describe("fundraising amount rules", () => {
   it("starts with angels, grants and accelerators up to 50K", () => { expect(guidanceTier(50000)).toBe("small"); expect(guidanceTier(50001)).toBe("angels"); });
@@ -17,4 +17,7 @@ describe("niche queries", () => {
   it("broadens only below five unique deals", () => { expect(MIN_NICHE_DEALS).toBe(5); });
   it("parses field aliases and retains provenance", () => { const rows = toDeals({results:[{company_name:"Fée",investor_names:[{name:"Fund X"}],lead_investor:"Fund X",amount_raised:"€1.5 million",announcement_date:"2026-01-01",source_url:"https://example.org/round"}]},"FemTech"); expect(rows[0]).toMatchObject({company:"Fée", investors:["Fund X"], lead:"Fund X",amount:1500000,date:"2026-01-01",niches:["FemTech"]}); });
   it("parses magnitude strings instead of treating millions as units", () => { expect(amountValue("over 100M")).toBe(100000000); });
+  it("does not invent investors from Cala's unnamed participants", () => { expect(toDeals({results:[{company:"DITTO",investors:"FoodLabs, angel investors, +1 other",date:null}]},"FemTech")[0]?.investors).toEqual(["FoodLabs"]); });
+  it("does not display foreign currencies as euros", () => { expect(toDeals({results:[{company:"A",investors:"X",amount:"DKK 1.5 M"}]},"Food Waste")[0]?.amount).toBeUndefined(); });
+  it("uses returned profile evidence to recognize funds with ambiguous names", () => { expect(investorType("Nextblue","NextBlue is a venture capital firm")).toBe("fund"); expect(investorType("Novax","Novax is an investment arm of a group")).toBe("fund"); expect(investorType("Peter Strömberg","Entrepreneur and angel investor")).toBe("angel"); });
 });

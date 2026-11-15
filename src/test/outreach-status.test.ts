@@ -6,7 +6,7 @@ describe("saved-person outreach", () => {
   it("defaults existing and invalid statuses to Not contacted", () => { expect(outreachStatus(founder)).toBe("Not contacted"); expect(outreachStatus({ status: "invalid" })).toBe("Not contacted"); });
   it("cycles through the four statuses and wraps back to Not contacted", () => {
     expect(OUTREACH_STATUSES).toEqual(["Not contacted", "Messaged", "Replied", "Meeting"]);
-    let people = [founder];
+    let people: SavedPerson[] = [founder];
     for (const status of ["Messaged", "Replied", "Meeting", "Not contacted"]) { people = cycleOutreachStatus(people, founder.id); expect(outreachStatus(people[0] ?? {})).toBe(status); }
   });
   it("changes only the selected saved person", () => { const other = { ...founder, id: "other", status: "Meeting" as const }; expect(cycleOutreachStatus([founder, other], founder.id)[1]).toEqual(other); });

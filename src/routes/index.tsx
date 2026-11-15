@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Bookmark, Trash2, Copy, Download, ExternalLink, Loader2, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
+import { Bookmark, Trash2, Copy, Download, ExternalLink, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
-import { Skeleton } from "@/components/ui/skeleton";
 import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { progressiveMap } from "@/lib/search-performance";
 import { IndustryPicker } from "@/components/industry-picker";
@@ -113,11 +112,11 @@ function Index() {
   const visibleInvestors = filterBusinessModel(filterInvestorKind(filterByRegion(filterInvestors(result?.investors ?? [], filter).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="mb-10 border-b pb-8 sm:mb-12">
-        <p className="mb-9 text-sm font-semibold">First Check</p>
-        <h1 className="text-4xl font-semibold leading-tight">{showResults ? "Your investor matches" : "Find your first investors."}</h1>
-        <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">Real pre-seed and seed deals. People who back companies like yours, and are still active today.</p>
+    <main className="mx-auto min-h-screen max-w-3xl px-5 py-7 sm:px-8 sm:py-12">
+      <header className="mb-10 pb-2 sm:mb-12">
+        <p className="mb-10 text-sm font-semibold">First Check</p>
+        <h1 className="max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl">{showResults ? "Your investor matches" : "Find the investors who actually wrote first checks in your space."}</h1>
+        <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">Real early-stage deals. Relevant investors. A warmer way to start.</p>
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="People views"><Button role="tab" aria-selected={tab === "results"} variant={tab === "results" ? "secondary" : "outline"} onClick={() => setTab("results")}>Results</Button><Button role="tab" aria-selected={tab === "saved"} variant={tab === "saved" ? "secondary" : "outline"} onClick={() => setTab("saved")}><Bookmark className="size-4" />Saved ({saved.people.length})</Button></div>
@@ -128,17 +127,17 @@ function Index() {
         <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Outreach status filter">{(["All", ...OUTREACH_STATUSES] as const).map((status) => <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "outline"} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status}</Button>)}</div>
         {!!saved.people.length && !visibleSaved.length && <p className="py-5 text-sm text-muted-foreground">No saved people with this status.</p>}
         {!saved.people.length && <p className="border-y py-8 text-sm text-muted-foreground">No saved people yet.</p>}
-        <ol className="divide-y-[1.5px] border-[1.5px]">{visibleSaved.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button><div className="mt-3"><OutreachStatusPill person={person} onCycle={cycleStatus} /></div></li>)}</ol>
+        <ol className="divide-y overflow-hidden rounded-2xl border bg-card">{visibleSaved.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button><div className="mt-3"><OutreachStatusPill person={person} onCycle={cycleStatus} /></div></li>)}</ol>
       </section>}
       {tab === "results" && !showResults && (
         <form onSubmit={(e) => { e.preventDefault(); void runSearch(form); }} className="space-y-7">
-          <div className="space-y-3"><Label>Saved searches</Label><select aria-label="Saved searches" value="" onChange={(e) => { const search = saved.searches.find((entry) => entry.id === e.target.value); if (search) void runSearch(search.input); }} className="h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Choose a saved search</option>{saved.searches.map((search) => <option key={search.id} value={search.id}>{search.name}</option>)}</select>{saved.searches.map((search) => <div key={search.id} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{search.name}</span><Button type="button" variant="ghost" size="icon" title="Delete saved search" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((item) => item.id !== search.id) })}><Trash2 className="size-4" /></Button></div>)}</div>
+          <div className="space-y-3"><Label>Saved searches</Label><select aria-label="Saved searches" value="" onChange={(e) => { const search = saved.searches.find((entry) => entry.id === e.target.value); if (search) void runSearch(search.input); }} className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Choose a saved search</option>{saved.searches.map((search) => <option key={search.id} value={search.id}>{search.name}</option>)}</select>{saved.searches.map((search) => <div key={search.id} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{search.name}</span><Button type="button" variant="ghost" size="icon" title="Delete saved search" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((item) => item.id !== search.id) })}><Trash2 className="size-4" /></Button></div>)}</div>
           <Field label="What are you building? (one line)">
             <Textarea required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Scheduling app for independent physiotherapists" />
           </Field>
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-6">
             <div className="sm:col-span-2"><Field label="Industry & niches"><IndustryPicker category={form.category} secondaryIndustry={form.secondaryIndustry} niches={form.niches} onChange={(category, secondaryIndustry, niches) => setForm({ ...form, category, secondaryIndustry, niches, industry: [category, secondaryIndustry].filter(Boolean).join(", ") })} /></Field></div>
-            <Field label="Country or region"><select aria-label="Country or region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>Choose a region</option>{REGIONS.filter((r) => r !== "All").map((r) => <option key={r}>{r}</option>)}{form.region && !REGIONS.some((r) => r === form.region) && <option>{form.region}</option>}</select></Field>
+            <Field label="Country or region"><select aria-label="Country or region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>Choose a region</option>{REGIONS.filter((r) => r !== "All").map((r) => <option key={r}>{r}</option>)}{form.region && !REGIONS.some((r) => r === form.region) && <option>{form.region}</option>}</select></Field>
             <Field label="Investor type"><div className="flex flex-wrap gap-2">{INVESTOR_TYPES.map((type) => <Button key={type} type="button" size="sm" variant={(form.investorType ?? "All") === type ? "secondary" : "outline"} aria-pressed={form.investorType === type} onClick={() => setForm({ ...form, investorType: type })}>{type}</Button>)}</div></Field>
             <Field label="Business model"><div className="flex flex-wrap gap-2">{(["B2B", "B2C", "both"] as const).map((model) => <Button key={model} type="button" size="sm" variant={(form.businessModel ?? "both") === model ? "secondary" : "outline"} aria-pressed={form.businessModel === model} onClick={() => setForm({ ...form, businessModel: model })}>{model === "both" ? "Both" : model}</Button>)}</div></Field>
             <Field label="Stage">
@@ -168,7 +167,7 @@ function Index() {
           <FundraisingGuide />
           <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter("All"); }} />
           {loading && !result && <LoadingState />}
-          {loading && result?.ok && <p role="status" className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Checking each investor's recent activity…</p>}
+          {loading && result?.ok && <LoadingState enriching />}
           {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
           {result && !result.ok && <div className="border-y py-8 text-muted-foreground">{result.error}</div>}
           {result?.ok && result.investors.length === 0 && (
@@ -185,7 +184,7 @@ function Index() {
               {result.broadened && <p className="mb-4 text-sm text-muted-foreground">Broader category matches included: fewer than 5 niche deals were found.</p>}
               {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No investors found with these filters.</p>}
               <h2 className="mb-2 mt-7 text-xs font-semibold text-muted-foreground">Who to ask first</h2>
-              <ol className="divide-y-[1.5px] border-[1.5px]">
+              <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
                 {visibleInvestors.map((inv) => (
                   <InvestorCard key={inv.name} inv={inv} founder={form} query={result.queries.join("\n\n")}
                     starred={saved.people.some((p) => p.id === personId("investor", inv.name))} onStar={() => togglePerson({ id: personId("investor", inv.name), role: "investor", investor: inv, input: form, query: result.queries.join("\n\n") })} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus}
@@ -206,20 +205,14 @@ function whyFit(i: InvestorResult, f: FounderInput) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
+  return <div className="space-y-2"><Label className="text-xs font-normal text-muted-foreground">{label}</Label>{children}</div>;
 }
 
 const STEPS = ["Searching funding rounds since 2024…", "Grouping deals by investor…", "Checking each investor's recent activity…"];
-function LoadingState() {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 py-5 text-sm">
-        <Loader2 className="size-4 animate-spin text-primary" />
-        <div className="space-y-1">{STEPS.map((s, i) => <p key={s} className="animate-pulse-soft" style={{ animationDelay: `${i * 0.4}s` }}>{s}</p>)}</div>
-      </div>
-      {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-    </div>
-  );
+function LoadingState({ enriching = false }: { enriching?: boolean }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setStep((current) => (current + 1) % STEPS.length), 3500); return () => clearInterval(timer); }, []);
+  return <div role="status" className="mb-6 space-y-3 py-4"><div aria-hidden="true" className="h-px overflow-hidden bg-border"><div className="progress-slide h-full w-1/3 bg-primary" /></div><p className="text-sm text-muted-foreground">{enriching ? "Checking each investor's recent activity…" : STEPS[step]}</p></div>;
 }
 
 function SourceLink({ url, label = "source" }: { url?: string | undefined; label?: string }) {
@@ -259,12 +252,12 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
   };
 
   return (
-    <li className="bg-card py-2">
-      <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
-        <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
+    <li className="bg-card py-1">
+      <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-20 w-full justify-start gap-3 rounded-xl px-3 py-3 text-left whitespace-normal">
+        <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span><Badge variant={match.level === "High match" ? "high" : match.level === "Medium match" ? "medium" : "low"}>{match.level}</Badge>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
-          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} early-stage startup{inv.deals === 1 ? "" : "s"} · {niches.join(" / ") || "Unknown"} · {inv.region || "Unknown"}</span>
+          <span className="flex flex-wrap items-center gap-2"><span className="text-[15px] font-semibold">{inv.name}</span><span className="text-xs font-normal text-muted-foreground">{inv.kind ?? "Unknown"}</span>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
+          <span className="mt-1 block truncate text-xs font-normal leading-5 text-muted-foreground">Led {inv.led} of {inv.deals} deals · {niches.join(", ") || "Unknown"}</span>
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>
@@ -272,14 +265,14 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       {savedInvestor && <div className="px-4 pb-3 sm:pl-18"><OutreachStatusPill person={savedInvestor} onCycle={onCycleStatus} /></div>}
       {expanded && <div className="px-2 pb-6 sm:pl-18">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{inv.kind ?? "Unknown"}</Badge>
-          {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</Badge>}
+          <Badge variant="outline">{match.level}</Badge>
+          {!inv.active && <span className="text-xs text-muted-foreground">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</span>}
           {fit && <Badge variant="outline">{fit === "bigger" ? "Usually backs bigger rounds" : "Similar round size"}</Badge>}
 
         </div>
       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
         <div><dt className="text-muted-foreground">Matching deals</dt><dd className="font-medium">Led {inv.led} of {inv.deals}<SourceLink url={dealSrc} /></dd></div>
-        <div><dt className="text-muted-foreground">Backs rounds of</dt><dd className="font-medium">{eur(inv.typicalTicket)}<SourceLink url={dealSrc} /></dd></div>
+        <div><dt className="text-muted-foreground">Typical ticket</dt><dd className="font-medium">{eur(inv.typicalTicket)}<SourceLink url={dealSrc} /><span className="mt-1 block text-xs font-normal text-muted-foreground">based on round size</span></dd></div>
       </dl>
       {inv.companies.length > 0 && (
         <p className="mt-4 text-sm"><span className="text-muted-foreground">Portfolio: </span>{inv.companies.slice(0, 3).join(", ")}<SourceLink url={dealSrc} /></p>
@@ -304,7 +297,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
 
       <div className="mt-5 flex flex-wrap gap-2">
         <Button asChild size="sm" variant="outline"><a href={linkedin.url} target="_blank" rel="noreferrer">{linkedin.label}<ExternalLink className="size-3" /></a></Button>
-        <Button size="sm" onClick={doDraft} disabled={drafting}>{drafting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{message ? "Redraft" : "Draft message"}</Button>
+        <Button size="sm" onClick={doDraft} disabled={drafting}>{drafting ? <span className="text-xs">…</span> : <Sparkles className="size-4" />}{message ? "Redraft" : "Draft message"}</Button>
         <Button size="sm" variant="outline" onClick={() => setOpen(!open)}>How we found this <ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></Button>
       </div>
       {err && <p className="mt-2 text-sm text-destructive">{err}</p>}

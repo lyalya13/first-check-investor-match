@@ -12,7 +12,7 @@ export function IndustryPicker({ category, secondaryIndustry, niches, onChange }
   const selected = niches as NicheSelection[];
   const choose = (primary: string, secondary: string) => onChange(primary, secondary, selected.filter((n) => n.category === primary || n.category === secondary));
   const toggle = (c: Category, name: string) => onChange(category, secondaryIndustry ?? "", selected.some((n) => n.category === c && n.name === name) ? selected.filter((n) => !(n.category === c && n.name === name)) : selected.length < 20 ? [...selected, { category: c, name }] : selected);
-  const selectClass = "h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+  const selectClass = "h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
   return <div className="space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Primary industry</p><select aria-label="Primary industry" required value={category} onChange={(e) => choose(e.target.value, e.target.value === secondaryIndustry ? "" : secondaryIndustry ?? "")} className={selectClass}><option value="" disabled>Choose an industry</option>{INDUSTRIES.map((c) => <option key={c}>{c}</option>)}</select></div>

@@ -35,7 +35,7 @@ use the editor.
 - Persist provider-produced search results in Cloud with normalized shared cache keys and 24-hour freshness; retain stale results for provider failures and a durable example snapshot so demo searches never depend on Cala availability.
 - Keep cache reads public and cache writes server-owned, accepting only validated inputs and provider-produced output, so callers cannot inject stored investor data.
 - Render investor summaries as expandable rows and preserve all outreach, sourcing and shortlist controls inside the expanded details, keeping the mobile list scannable.
-- Keep the default and explicit dark theme on the same semantic CSS tokens and use native dark color-scheme so form controls and overlays stay readable without changing layout or search logic.
+- Keep the default and explicit theme on the same semantic CSS tokens and use native light color-scheme so form controls and overlays stay readable without changing layout or search logic.
 - Compute matches, region filtering and LinkedIn fallbacks in a pure shared module; score explicit Cala deal niches rather than query provenance to avoid unsupported matches.
 - Version cache keys when the provider result shape changes so the durable example and live results share the same enrichment fields.
 - Keep founder-intro drafts deterministic and editable using only returned portfolio relationships; never ask AI to supply missing founder facts.
@@ -47,3 +47,4 @@ use the editor.
 
 - Keep outreach status normalization, cycling, counts and filtering in the saved-items module; resolve missing legacy statuses to Not contacted without changing existing storage keys.
 - Keep fundraising guidance in shared presentation components; persist the results guide’s open state through guarded browser storage without touching search/cache behavior.
+- Keep provider failure messaging in a client-safe pure adapter so rate-limit behavior is independently testable while stale-cache resolution remains server-owned.

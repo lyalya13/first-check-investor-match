@@ -7,6 +7,7 @@ import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
 import { CALA_TIMEOUT_MS, parallelMap } from "./search-performance";
+import { calaSearchError } from "./cala-errors";
 
 const BASE = "https://api.cala.ai/v1";
 
@@ -114,7 +115,7 @@ export const findInvestors = createServerFn({ method: "POST" })
     } catch (e) {
       console.log("[cala timing] failed search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - searchStarted) }));
       const msg = (e as Error).message;
-      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala's request limit has been reached. Please wait a few minutes before searching again." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
+      return { ok: false as const, error: calaSearchError(msg), investors: [], queries: [], dealCount: 0 };
     }
   });
 

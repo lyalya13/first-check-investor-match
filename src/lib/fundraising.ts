@@ -43,7 +43,7 @@ export function filterInvestors<T extends { type: "angel" | "fund" }>(investors:
   return investors;
 }
 export const INDUSTRIES: Category[] = ["Health & Wellbeing", "Food & Nutrition", "Fintech & Insurance Tech", "Climate", "Cleantech", "Energy", "Mobility", "Education", "Enterprise Software", "AI", "E-commerce", "Medtech & Pharma", "Biotech", "Agricultural Tech", "Clothing & Fashion", "Home & Living", "Social Impact", "Gaming", "Travel & Leisure", "Something Else"];
-export function dealSearchIndustries(input: { category: string; secondaryIndustry?: string }) {
+export function dealSearchIndustries(input: { category: string; secondaryIndustry?: string | undefined }) {
   return [...new Set([input.category, input.secondaryIndustry].filter((s): s is string => !!s))].slice(0, 2);
 }
 export const INVESTOR_TYPES = ["All", "Angels", "VCs", "Corporate VCs"] as const;

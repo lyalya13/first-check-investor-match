@@ -55,10 +55,10 @@ export type InvestorResult = ReturnType<typeof aggregateInvestors>[number] & {
   summary: string;
   summarySources: { title: string; url: string }[];
   summaryQuery: string;
-  location?: string;
+  location?: string | undefined;
   region: InvestorRegion;
-  linkedin?: string;
-  profileSource?: string;
+  linkedin?: string | undefined;
+  profileSource?: string | undefined;
 };
 
 export const findInvestors = createServerFn({ method: "POST" })

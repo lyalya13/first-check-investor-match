@@ -7,10 +7,10 @@ export type Deal = {
   source?: string | undefined;
   niches?: string[];
   focusNiches?: string[];
-  stage?: string;
-  location?: string;
-  founders?: { name: string; linkedin?: string }[];
-  companyLinkedin?: string;
+  stage?: string | undefined;
+  location?: string | undefined;
+  founders?: { name: string; linkedin?: string | undefined }[];
+  companyLinkedin?: string | undefined;
   datePrecision?: "day" | "month" | "year";
 };
 

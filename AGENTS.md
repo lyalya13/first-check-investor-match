@@ -50,3 +50,4 @@ use the editor.
 - Keep provider failure messaging in a client-safe pure adapter so rate-limit behavior is independently testable while stale-cache resolution remains server-owned.
 
 - Normalize multi-select search dimensions in versioned cache keys and reuse only the existing durable provider example for preset compatibility, so new selections never share unrelated cached results.
+- Keep provider query target generation in a client-safe pure module used by the server and tests, so niches, stage, models and locations cannot silently diverge.

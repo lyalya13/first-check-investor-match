@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { guidanceTier } from "@/lib/fundraising";
 
-const GUIDE_KEY = "first-check-fundraising-guide-light-open";
+const GUIDE_KEY = "first-check-fundraising-guide-visible-open";
 
 export function AmountTip({ amount }: { amount: number }) {
   const tier = guidanceTier(amount);

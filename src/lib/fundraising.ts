@@ -47,7 +47,7 @@ export function dealSearchIndustries(input: { category: string; secondaryIndustr
   return [...new Set([input.category, input.secondaryIndustry, input.thirdIndustry].filter((s): s is string => !!s))].slice(0, 3);
 }
 export const INVESTOR_TYPES = ["All", "Angels", "VCs", "Corporate VCs"] as const;
-export type InvestorKind = "Angel" | "VC" | "Corporate VC" | "Accelerator" | "Family office" | "Syndicate / Network" | "Other" | "Unknown";
+export type InvestorKind = "Angel" | "VC" | "Corporate VC" | "CVC" | "Accelerator" | "Family office" | "Syndicate / Network" | "Other" | "Unknown";
 export type InvestorTypeFilter = typeof INVESTOR_TYPES[number];
 export function verifiedInvestorKind(value?: string): InvestorKind {
   if (!value) return "Unknown";

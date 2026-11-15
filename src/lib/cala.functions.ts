@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { aggregateInvestors, isActive, type Deal } from "./aggregate";
-import { CATEGORIES, dealSearchIndustries, verifiedInvestorKind, classifyInvestor, selectedModels, selectedRegions, BUSINESS_MODELS, STAGES, STAGE_LABELS, type InvestorKind } from "./fundraising";
+import { CATEGORIES, dealSearchIndustries, classifyInvestor, BUSINESS_MODELS, STAGES, type InvestorKind } from "./fundraising";
 import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from "./cala-data";
 import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
 import { CALA_TIMEOUT_MS, parallelMap } from "./search-performance";
+import { dealQueryTarget } from "./deal-query";
 import { calaSearchError } from "./cala-errors";
 
 const BASE = "https://api.cala.ai/v1";
@@ -22,7 +23,7 @@ const founderSchema = z.object({
   businessModel: z.enum(["B2B", "B2C", "both"]).optional(),
   investorType: z.enum(["All", "Angels", "VCs", "Corporate VCs"]).optional(),
   niches: z.array(z.object({ category: z.string().refine((s) => s in CATEGORIES), name: z.string().trim().min(1).max(120) })).max(20),
-  region: z.string().min(1).max(120),
+  region: z.string().min(1).max(4000),
   stage: z.enum(STAGES),
   amount: z.number().nonnegative(),
   website: z.string().max(300).optional(),
@@ -92,8 +93,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       let partial = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
-        const selectedNiches = data.niches.filter((n) => n.category === niche).map((n) => n.name);
-         const q = `Find ${STAGE_LABELS[data.stage]} funding rounds announced since January 1, 2024 for ${selectedModels(data).join(" or ") || "any business model"} ${niche} startups${selectedNiches.length ? ` in any of these niches (${selectedNiches.join(" OR ")})` : ""} in any of these countries or regions: ${selectedRegions(data).join(" OR ")}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url, business_model (B2B, B2C, B2B2C, B2G, C2C, Other, both, or null, verified company customer model). Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
+        const q = `Find ${dealQueryTarget(data, niche)}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url, business_model (B2B, B2C, B2B2C, B2G, C2C, Other, both, or null, verified company customer model). Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
         queries.push(q);
         try {
           const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
@@ -156,7 +156,7 @@ export const enrichInvestor = createServerFn({ method: "POST" })
     const previous = saved?.result.investors[0] ?? inv;
     const text = summary.text || previous.summary;
     const location = profile.location || previous.location;
-    const investor: InvestorResult = { ...inv, type: investorType(inv.name, text), kind: classifyInvestor(inv.name, profile.kind ?? text) === "CVC" ? "Corporate VC" : classifyInvestor(inv.name, profile.kind ?? text), summary: text, summarySources: summary.sources.length ? summary.sources : previous.summarySources, location, region: detailedRegionOf(location), linkedin: profile.linkedin || previous.linkedin, profileSource: profile.source || previous.profileSource };
+    const investor: InvestorResult = { ...inv, type: investorType(inv.name, text), kind: classifyInvestor(inv.name, profile.kind ?? (previous.kind && previous.kind !== "Unknown" ? previous.kind : text)), summary: text, summarySources: summary.sources.length ? summary.sources : previous.summarySources, location, region: detailedRegionOf(location), linkedin: profile.linkedin || previous.linkedin, profileSource: profile.source || previous.profileSource };
     await storeSearchCache(profileKey, { ...cached.result, investors: [investor], enrichmentPending: false, partial }, false).catch(() => {});
     return { ok: true as const, investor, partial };
   });

@@ -32,3 +32,6 @@ use the editor.
 - Keep category selections and fundraising thresholds in a client-safe shared module so the UI and tests use identical rules.
 - Parse Cala responses in a pure adapter and merge deals by normalized company plus date, preserving every query's niche provenance.
 - Query selected niches independently with OR semantics; broaden to all selected categories when fewer than five unique deals return.
+- Persist provider-produced search results in Cloud with normalized shared cache keys and 24-hour freshness; retain stale results for provider failures and a durable example snapshot so demo searches never depend on Cala availability.
+- Keep cache reads public and cache writes server-owned, accepting only validated inputs and provider-produced output, so callers cannot inject stored investor data.
+- Render investor summaries as expandable rows and preserve all outreach, sourcing and shortlist controls inside the expanded details, keeping the mobile list scannable.

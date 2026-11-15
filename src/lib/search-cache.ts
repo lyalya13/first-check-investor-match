@@ -1,15 +1,16 @@
+import { selectedModels, selectedRegions, type BusinessModel } from "./fundraising";
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-type SearchInput = { niches: { name: string; category: string }[]; category: string; secondaryIndustry?: string | undefined; businessModel?: string | undefined; investorType?: string | undefined; region: string; stage: string; amount: number };
+type SearchInput = { niches: { name: string; category: string }[]; category: string; secondaryIndustry?: string | undefined; thirdIndustry?: string | undefined; businessModels?: BusinessModel[] | undefined; regions?: string[] | undefined; businessModel?: string | undefined; investorType?: string | undefined; region: string; stage: string; amount: number };
 const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
 
 export function searchCacheKey(input: SearchInput): string {
   return JSON.stringify({
-    version: 3,
+    version: 4,
     niches: [...new Set(input.niches.map((n) => normalize(n.name)))].sort(),
-    categories: [...new Set([input.category, ...(input.secondaryIndustry ? [input.secondaryIndustry] : [])].map(normalize))].sort(),
-    businessModel: input.businessModel ?? "both", investorType: input.investorType ?? "All",
-    region: normalize(input.region), stage: normalize(input.stage), amount: input.amount,
+    categories: [...new Set([input.category, ...(input.secondaryIndustry ? [input.secondaryIndustry] : []), ...(input.thirdIndustry ? [input.thirdIndustry] : [])].map(normalize))].sort(),
+    businessModels: [...new Set(selectedModels(input).map(normalize))].sort(), investorType: input.investorType ?? "All",
+    regions: [...new Set(selectedRegions(input).map(normalize))].sort(), stage: normalize(input.stage), amount: input.amount,
   });
 }
 

@@ -43,11 +43,11 @@ export function filterInvestors<T extends { type: "angel" | "fund" }>(investors:
   return investors;
 }
 export const INDUSTRIES: Category[] = ["Health & Wellbeing", "Food & Nutrition", "Fintech & Insurance Tech", "Climate", "Cleantech", "Energy", "Mobility", "Education", "Enterprise Software", "AI", "E-commerce", "Medtech & Pharma", "Biotech", "Agricultural Tech", "Clothing & Fashion", "Home & Living", "Social Impact", "Gaming", "Travel & Leisure", "Something Else"];
-export function dealSearchIndustries(input: { category: string; secondaryIndustry?: string | undefined }) {
-  return [...new Set([input.category, input.secondaryIndustry].filter((s): s is string => !!s))].slice(0, 2);
+export function dealSearchIndustries(input: { category: string; secondaryIndustry?: string | undefined; thirdIndustry?: string | undefined }) {
+  return [...new Set([input.category, input.secondaryIndustry, input.thirdIndustry].filter((s): s is string => !!s))].slice(0, 3);
 }
 export const INVESTOR_TYPES = ["All", "Angels", "VCs", "Corporate VCs"] as const;
-export type InvestorKind = "Angel" | "VC" | "Corporate VC" | "Unknown";
+export type InvestorKind = "Angel" | "VC" | "Corporate VC" | "CVC" | "Accelerator" | "Family office" | "Syndicate / Network" | "Other" | "Unknown";
 export type InvestorTypeFilter = typeof INVESTOR_TYPES[number];
 export function verifiedInvestorKind(value?: string): InvestorKind {
   if (!value) return "Unknown";
@@ -59,4 +59,35 @@ export function verifiedInvestorKind(value?: string): InvestorKind {
 export function filterInvestorKind<T extends { kind?: InvestorKind }>(rows: T[], filter: InvestorTypeFilter): T[] {
   const kind = filter === "Angels" ? "Angel" : filter === "VCs" ? "VC" : "Corporate VC";
   return filter === "All" ? rows : rows.filter((row) => row.kind === kind);
+}
+
+export const BUSINESS_MODELS = ["B2B", "B2C", "B2B2C", "B2G", "C2C", "Other"] as const;
+export type BusinessModel = typeof BUSINESS_MODELS[number];
+export const STAGES = ["idea", "pre-seed", "seed", "series-a"] as const;
+export const STAGE_LABELS = { idea: "Idea", "pre-seed": "Pre-seed", seed: "Seed", "series-a": "Series A" };
+export const PEOPLE_TYPES = ["Angel", "VC", "CVC", "Accelerator", "Family office", "Syndicate / Network", "Other"] as const;
+export type PeopleType = typeof PEOPLE_TYPES[number];
+export function defaultPeopleTypes(amount: number): PeopleType[] {
+  return amount <= 150000 ? ["Angel", "Accelerator", "Syndicate / Network"] : [...PEOPLE_TYPES];
+}
+export function classifyInvestor(name: string, evidence?: string): PeopleType {
+  const classify = (value: string): PeopleType | undefined => {
+    if (/corporate (?:vc|venture)|investment arm|^cvc$/i.test(value)) return "CVC";
+    if (/accelerator|incubator/i.test(value)) return "Accelerator";
+    if (/family office/i.test(value)) return "Family office";
+    if (/syndicate|angel network|angel group|angels\b|investor network/i.test(value)) return "Syndicate / Network";
+    if (/angel investor|^angel$/i.test(value)) return "Angel";
+    if (/venture capital|ventures?\b|\bvc\b|venture fund/i.test(value)) return "VC";
+    return undefined;
+  };
+  return classify(evidence ?? "") ?? classify(name) ?? "Other";
+}
+export function filterPeopleTypes<T extends { name: string; kind?: string; summary?: string }>(rows: T[], types: PeopleType[]): T[] {
+  return rows.filter((row) => types.includes(classifyInvestor(row.name, row.kind && row.kind !== "Unknown" ? row.kind : row.summary)));
+}
+export function selectedModels(input: { businessModels?: BusinessModel[] | undefined; businessModel?: string | undefined }): BusinessModel[] {
+  return input.businessModels ?? (input.businessModel === "both" ? [] : BUSINESS_MODELS.filter((m) => m === input.businessModel));
+}
+export function selectedRegions(input: { regions?: string[] | undefined; region: string }): string[] {
+  return input.regions ?? (input.region ? [input.region] : []);
 }

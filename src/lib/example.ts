@@ -3,7 +3,7 @@ export const EXAMPLE = {
   industry: "Health & Wellbeing, Food & Nutrition",
   category: "Health & Wellbeing",
   secondaryIndustry: "Food & Nutrition",
-  businessModel: "both" as const,
+  businessModel: "B2C" as const,
   investorType: "All" as const,
   niches: [{ category: "Health & Wellbeing", name: "FemTech" },{ category: "Health & Wellbeing", name: "Cycle tracking" }, { category: "Food & Nutrition", name: "Personalized nutrition" }, { category: "Food & Nutrition", name: "Meal Planning" }, { category: "Food & Nutrition", name: "Food Waste" }],
   region: "Nordics",

@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
 import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { progressiveMap } from "@/lib/search-performance";
+import { MultiLocationPicker } from "@/components/multi-location-picker";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
-import { defaultFilter, filterInvestors, ticketFit, filterInvestorKind, INVESTOR_TYPES, type InvestorTypeFilter, type InvestorFilter } from "@/lib/fundraising";
+import { defaultFilter, filterInvestors, ticketFit, defaultPeopleTypes, filterPeopleTypes, classifyInvestor, PEOPLE_TYPES, BUSINESS_MODELS, STAGES, STAGE_LABELS, selectedModels, selectedRegions, type PeopleType, type BusinessModel, type InvestorFilter } from "@/lib/fundraising";
 
 import { AmountTip, FundraisingGuide, ResultsAmountTip } from "@/components/founder-guidance";
 import { OutreachStatusPill } from "@/components/outreach-status";
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "", stage: "pre-seed", amount: 0, website: "", secondaryIndustry: "", businessModel: "both", investorType: "All" };
+const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "Nordics", stage: "pre-seed", amount: 40000, website: "", secondaryIndustry: "", businessModel: "both", investorType: "All" };
 const eur = (n: number | null) => (n ? new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, notation: n >= 1e6 ? "compact" : "standard" }).format(n) : "Unknown");
 
 type Result = Awaited<ReturnType<typeof findInvestors>>;
@@ -52,8 +53,8 @@ function Index() {
   const [savedName, setSavedName] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
   const searchRun = useRef(0);
-  const [typeFilter, setTypeFilter] = useState<InvestorTypeFilter>("All");
-  const [modelFilter, setModelFilter] = useState<"B2B" | "B2C" | "both">("both");
+  const [typeFilter, setTypeFilter] = useState<PeopleType[]>(defaultPeopleTypes(40000));
+  const [modelFilter, setModelFilter] = useState<BusinessModel[]>([]);
   useEffect(() => { try { setSaved(readSavedItems(window.localStorage)); } catch { /* Storage may be blocked. */ } }, []);
   const persist = (items: SavedItems) => {
     setSaved(items);
@@ -71,7 +72,7 @@ function Index() {
   const runSearch = async (searchInput: FounderInput) => {
     const run = ++searchRun.current;
     setTab("results"); setForm(searchInput);
-    setLoading(true); setResult(null); setMessages({}); setFilter(defaultFilter(searchInput.amount)); setRegionFilter("All"); setTypeFilter(searchInput.investorType ?? "All"); setModelFilter(searchInput.businessModel ?? "both");
+    setLoading(true); setResult(null); setMessages({}); setFilter(defaultFilter(searchInput.amount)); setRegionFilter("All"); setTypeFilter(defaultPeopleTypes(searchInput.amount)); setModelFilter(selectedModels(searchInput));
     try {
       const started = performance.now();
       const input = { ...searchInput, website: searchInput.website || undefined };
@@ -109,7 +110,7 @@ function Index() {
   };
   const starCount = saved.people.filter((p) => p.role === "investor").length;
   const showResults = loading || result;
-  const visibleInvestors = filterBusinessModel(filterInvestorKind(filterByRegion(filterInvestors(result?.investors ?? [], filter).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
+  const visibleInvestors = filterBusinessModel(filterPeopleTypes(filterByRegion(filterInvestors(result?.investors ?? [], filter).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-7 sm:px-8 sm:py-12">
@@ -130,30 +131,29 @@ function Index() {
         <ol className="divide-y overflow-hidden rounded-2xl border bg-card">{visibleSaved.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button><div className="mt-3"><OutreachStatusPill person={person} onCycle={cycleStatus} /></div></li>)}</ol>
       </section>}
       {tab === "results" && !showResults && (
-        <form onSubmit={(e) => { e.preventDefault(); void runSearch(form); }} className="space-y-7">
-          <div className="space-y-3"><Label>Saved searches</Label><select aria-label="Saved searches" value="" onChange={(e) => { const search = saved.searches.find((entry) => entry.id === e.target.value); if (search) void runSearch(search.input); }} className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Choose a saved search</option>{saved.searches.map((search) => <option key={search.id} value={search.id}>{search.name}</option>)}</select>{saved.searches.map((search) => <div key={search.id} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{search.name}</span><Button type="button" variant="ghost" size="icon" title="Delete saved search" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((item) => item.id !== search.id) })}><Trash2 className="size-4" /></Button></div>)}</div>
-          <Field label="What are you building? (one line)">
-            <Textarea required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Scheduling app for independent physiotherapists" />
+        <form onSubmit={(e) => { e.preventDefault(); if (!selectedRegions(form).length) return; void runSearch(form); }} className="space-y-7">
+          <div className="space-y-3"><Label>Saved searches</Label><p className="text-xs leading-5 text-muted-foreground">Reopen a search you saved in this browser, with all your choices.</p><select aria-label="Saved searches" value="" onChange={(e) => { const search = saved.searches.find((entry) => entry.id === e.target.value); if (search) void runSearch(search.input); }} className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Choose a saved search</option>{saved.searches.map((search) => <option key={search.id} value={search.id}>{search.name}</option>)}</select>{saved.searches.map((search) => <div key={search.id} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{search.name}</span><Button type="button" variant="ghost" size="icon" title="Delete saved search" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((item) => item.id !== search.id) })}><Trash2 className="size-4" /></Button></div>)}</div>
+          <Field label="What are you building?" hint="Describe your product and who it helps in one sentence, so your outreach feels specific.">
+            <Textarea aria-label="What are you building?" required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Scheduling app for independent physiotherapists" />
           </Field>
           <div className="grid gap-6">
-            <div className="sm:col-span-2"><Field label="Industry & niches"><IndustryPicker category={form.category} secondaryIndustry={form.secondaryIndustry} niches={form.niches} onChange={(category, secondaryIndustry, niches) => setForm({ ...form, category, secondaryIndustry, niches, industry: [category, secondaryIndustry].filter(Boolean).join(", ") })} /></Field></div>
-            <Field label="Country or region"><select aria-label="Country or region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>Choose a region</option>{REGIONS.filter((r) => r !== "All").map((r) => <option key={r}>{r}</option>)}{form.region && !REGIONS.some((r) => r === form.region) && <option>{form.region}</option>}</select></Field>
-            <Field label="Investor type"><div className="flex flex-wrap gap-2">{INVESTOR_TYPES.map((type) => <Button key={type} type="button" size="sm" variant={(form.investorType ?? "All") === type ? "secondary" : "outline"} aria-pressed={form.investorType === type} onClick={() => setForm({ ...form, investorType: type })}>{type}</Button>)}</div></Field>
-            <Field label="Business model"><div className="flex flex-wrap gap-2">{(["B2B", "B2C", "both"] as const).map((model) => <Button key={model} type="button" size="sm" variant={(form.businessModel ?? "both") === model ? "secondary" : "outline"} aria-pressed={form.businessModel === model} onClick={() => setForm({ ...form, businessModel: model })}>{model === "both" ? "Both" : model}</Button>)}</div></Field>
-            <Field label="Stage">
+            <div className="sm:col-span-2"><Field label="Industries and specific areas" hint="Choose your main industry, then add up to two more if they also fit."><IndustryPicker category={form.category} secondaryIndustry={form.secondaryIndustry} thirdIndustry={form.thirdIndustry} niches={form.niches} onChange={(category, secondaryIndustry, thirdIndustry, niches) => setForm({ ...form, category, secondaryIndustry, thirdIndustry, niches, industry: [category, secondaryIndustry, thirdIndustry].filter(Boolean).join(", ") })} /></Field></div>
+            <Field label="Countries or regions" hint="Choose every place where you want to find similar funded startups. You can add a country by name."><MultiLocationPicker values={selectedRegions(form)} onChange={(regions) => setForm({ ...form, regions, region: regions.join(", ") })} />{!selectedRegions(form).length && <p className="text-xs text-muted-foreground">Choose at least one country or region.</p>}</Field>
+            <Field label="Who are your customers?" hint="Choose all that fit. We look for investors who backed companies serving similar customers."><div className="flex flex-wrap gap-2" role="group" aria-label="Business models">{BUSINESS_MODELS.map((model) => <Button key={model} type="button" size="sm" variant={selectedModels(form).includes(model) ? "secondary" : "outline"} aria-pressed={selectedModels(form).includes(model)} onClick={() => setForm({ ...form, businessModels: selectedModels(form).includes(model) ? selectedModels(form).filter((m) => m !== model) : [...selectedModels(form), model] })}>{model}</Button>)}</div><p className="text-xs leading-5 text-muted-foreground">B2B: businesses · B2C: consumers · B2B2C: consumers through businesses · B2G: government · C2C: people buying from each other · Other: another model. Leave blank if unsure.</p></Field>
+            <Field label="Where are you in your journey?" hint="Idea: exploring a concept. Pre-seed: building or testing. Seed: gaining customers. Series A: growing a proven business.">
               <div className="grid grid-cols-2 gap-2">
-                {(["pre-seed", "seed"] as const).map((s) => (
-                  <Button key={s} type="button" variant={form.stage === s ? "secondary" : "outline"} onClick={() => setForm({ ...form, stage: s })} className="capitalize">{s}</Button>
+                {STAGES.map((s) => (
+                  <Button key={s} type="button" variant={form.stage === s ? "secondary" : "outline"} onClick={() => setForm({ ...form, stage: s })} aria-pressed={form.stage === s}>{STAGE_LABELS[s]}</Button>
                 ))}
               </div>
             </Field>
-            <Field label="Amount raising (€)"><Input aria-label="Amount raising (€)" required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /><AmountTip amount={form.amount} /></Field>
+            <Field label="Amount raising (€)" hint="The total you want to raise, not the amount from one investor. This helps suggest who to approach first."><Input aria-label="Amount raising (€)" required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /><AmountTip amount={form.amount} /></Field>
           </div>
-          <Field label="Website (optional)"><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" /></Field>
-          <Button type="button" variant="outline" disabled={!form.description.trim() || !form.category || !form.region || !form.amount} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button>
+          <Field label="Website (optional)" hint="Your startup’s website can give investors more context in your message. It’s fine to leave this blank."><Input aria-label="Website (optional)" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" /></Field>
+          <Button type="button" variant="outline" disabled={!form.description.trim() || !form.category || !selectedRegions(form).length || !form.amount} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button>
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setForm(EXAMPLE)}><Sparkles className="size-4" /> Try with an example</Button>
-            <Button type="submit" size="lg">Find investors</Button>
+            <Button type="submit" size="lg" disabled={!selectedRegions(form).length}>Find investors</Button>
           </div>
         </form>
       )}
@@ -165,7 +165,7 @@ function Index() {
             <Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button>
           </div>
           <FundraisingGuide />
-          <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter("All"); }} />
+          <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter(defaultPeopleTypes(40000)); }} />
           {loading && !result && <LoadingState />}
           {loading && result?.ok && <LoadingState enriching />}
           {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
@@ -176,13 +176,15 @@ function Index() {
           {result?.ok && (
             <>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "secondary" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{INVESTOR_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter === type ? "secondary" : "outline"} aria-pressed={typeFilter === type} onClick={() => setTypeFilter(type)}>{type}</Button>)}</div>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{(["B2B", "B2C", "both"] as const).map((model) => <Button key={model} size="sm" variant={modelFilter === model ? "secondary" : "outline"} aria-pressed={modelFilter === model} onClick={() => setModelFilter(model)}>{model === "both" ? "Both" : model}</Button>)}</div>
+              <h3 className="mb-1 text-sm font-medium">Investor type</h3><p className="mb-3 text-xs leading-5 text-muted-foreground">Angels usually write the first check. Choose any combination; types are estimated from Cala data and names, with Other when unclear.</p>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{PEOPLE_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter.includes(type) ? "secondary" : "outline"} aria-pressed={typeFilter.includes(type)} onClick={() => setTypeFilter(typeFilter.includes(type) ? typeFilter.filter((t) => t !== type) : [...typeFilter, type])}>{type}</Button>)}<Button size="sm" variant="ghost" onClick={() => setTypeFilter([...PEOPLE_TYPES])}>Show all types</Button></div>
+              <h3 className="mb-1 text-sm font-medium">Customers of companies they backed</h3><p className="mb-3 text-xs text-muted-foreground">Choose models to narrow the list, or clear them to see everyone.</p>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{BUSINESS_MODELS.map((model) => <Button key={model} size="sm" variant={modelFilter.includes(model) ? "secondary" : "outline"} aria-pressed={modelFilter.includes(model)} onClick={() => setModelFilter(modelFilter.includes(model) ? modelFilter.filter((m) => m !== model) : [...modelFilter, model])}>{model}</Button>)}<Button size="sm" variant="ghost" onClick={() => setModelFilter([])}>All customer models</Button></div>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "secondary" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
               {result.cached && <p className="mb-3 text-xs text-muted-foreground">Saved Cala results · {result.fetchedAt.slice(0, 10)}{result.stale ? " · Last available results" : ""}</p>}
               {result.broadened && <p className="mb-4 text-sm text-muted-foreground">Broader category matches included: fewer than 5 niche deals were found.</p>}
-              {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No investors found with these filters.</p>}
+              {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No investors found with these filters. Try “Show all types” and “All customer models” to see more.</p>}
               <h2 className="mb-2 mt-7 text-xs font-semibold text-muted-foreground">Who to ask first</h2>
               <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
                 {visibleInvestors.map((inv) => (
@@ -204,8 +206,8 @@ function whyFit(i: InvestorResult, f: FounderInput) {
   return scoreMatch(i,f).reasons.join(" · ") || "Unknown";
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label className="text-xs font-normal text-muted-foreground">{label}</Label>{children}</div>;
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><Label className="text-xs font-normal text-muted-foreground">{label}</Label>{children}{hint && <p className="text-xs leading-5 text-muted-foreground">{hint}</p>}</div>;
 }
 
 const STEPS = ["Searching funding rounds since 2024…", "Grouping deals by investor…", "Checking each investor's recent activity…"];
@@ -256,7 +258,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-20 w-full justify-start gap-3 rounded-xl px-3 py-3 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2"><span className="text-[15px] font-semibold">{inv.name}</span><span className="text-xs font-normal text-muted-foreground">{inv.kind ?? "Unknown"}</span>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
+          <span className="flex flex-wrap items-center gap-2"><span className="text-[15px] font-semibold">{inv.name}</span><span className="text-xs font-normal text-muted-foreground">{classifyInvestor(inv.name, inv.kind && inv.kind !== "Unknown" ? inv.kind : inv.summary)}</span>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
           <span className="mt-1 block truncate text-xs font-normal leading-5 text-muted-foreground">Led {inv.led} of {inv.deals} deals · {niches.join(", ") || "Unknown"}</span>
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -282,7 +284,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
         <div><dt className="text-muted-foreground">Investor location</dt><dd>{inv.location || "Unknown"}<SourceLink url={inv.profileSource} /></dd></div>
         <div><dt className="text-muted-foreground">Invests mostly in</dt><dd>{niches.join(" / ") || "Unknown"}</dd></div>
       </dl>
-      <h3 className="mt-5 text-xs font-semibold text-muted-foreground">Why this match</h3>
+      <h3 className="mt-5 text-xs font-semibold text-muted-foreground">Why they fit</h3>
       <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">{match.reasons.length ? match.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Unknown</li>}</ul>
       <h3 className="mt-5 text-xs font-semibold text-muted-foreground">Recent investments</h3>
       <ul className="mt-3 space-y-3 text-xs text-muted-foreground">{recentDeals(inv.matchedDeals).map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span> · {d.stage || "Unknown"} · {d.date ? d.datePrecision === "month" ? d.date.slice(0,7) : d.datePrecision === "year" ? d.date.slice(0,4) : d.date : "Unknown"}<SourceLink url={d.source} /><span className="mt-1 block">{d.focusNiches?.join(" / ") || "Unknown"} · {d.location || "Unknown"}</span><span className="mt-1 block">Found through: {d.niches?.join(" / ") || "Unknown"}</span></li>)}</ul>

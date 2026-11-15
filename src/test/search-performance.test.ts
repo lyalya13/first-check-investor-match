@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CALA_TIMEOUT_MS, parallelMap, progressiveMap } from "@/lib/search-performance";
 
 describe("live search performance", () => {
-  it("limits each Cala call to 20 seconds", () => { expect(CALA_TIMEOUT_MS).toBe(20000); });
+  it("limits each Cala call to 25 seconds", () => { expect(CALA_TIMEOUT_MS).toBe(25000); });
   it("starts all five niches concurrently", async () => {
     let running = 0, peak = 0;
     const result = await parallelMap([1, 2, 3, 4, 5], async (n) => {

@@ -31,7 +31,7 @@ use the editor.
 
 - Keep category selections and fundraising thresholds in a client-safe shared module so the UI and tests use identical rules.
 - Parse Cala responses in a pure adapter and merge deals by normalized company plus date, preserving every query's niche provenance.
-- Query only primary and optional secondary broad industries independently (at most two deal calls); use optional niches exclusively for ranking, never extra provider calls.
+- Query each selected industry once (up to three) with its niches, all selected locations, customer models and stage in the query; merge deals to bound outbound calls while honoring founder selections.
 - Persist provider-produced search results in Cloud with normalized shared cache keys and 24-hour freshness; retain stale results for provider failures and a durable example snapshot so demo searches never depend on Cala availability.
 - Keep cache reads public and cache writes server-owned, accepting only validated inputs and provider-produced output, so callers cannot inject stored investor data.
 - Render investor summaries as expandable rows and preserve all outreach, sourcing and shortlist controls inside the expanded details, keeping the mobile list scannable.
@@ -43,8 +43,10 @@ use the editor.
 - Limit Cala calls to 20 seconds and six concurrent outbound requests per invocation; avoid retries on the interactive path so timeouts do not multiply.
 
 - Store named searches and full investor/founder snapshots in versioned browser storage with guarded reads/writes; saved views and CSV must not depend on the current results.
-- Use explicit provider investor types and company business models for filters; missing classifications stay Unknown instead of guessing from names.
+- Parse customer models only from provider evidence; estimate investor categories from explicit Cala classifications then distinctive name cues, with Other as the fallback to avoid asserting unsupported classifications.
 
 - Keep outreach status normalization, cycling, counts and filtering in the saved-items module; resolve missing legacy statuses to Not contacted without changing existing storage keys.
 - Keep fundraising guidance in shared presentation components; persist the results guide’s open state through guarded browser storage without touching search/cache behavior.
 - Keep provider failure messaging in a client-safe pure adapter so rate-limit behavior is independently testable while stale-cache resolution remains server-owned.
+
+- Normalize multi-select search dimensions in versioned cache keys and reuse only the existing durable provider example for preset compatibility, so new selections never share unrelated cached results.

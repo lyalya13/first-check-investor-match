@@ -173,7 +173,7 @@ function Index() {
               <h3 className="mb-1 text-sm font-medium">Investor type</h3><p className="mb-3 text-xs leading-5 text-muted-foreground">Angels usually write the first check. Choose any combination; types are estimated from Cala data and names, with Other when unclear.</p>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{PEOPLE_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter.includes(type) ? "secondary" : "outline"} aria-pressed={typeFilter.includes(type)} onClick={() => setTypeFilter(typeFilter.includes(type) ? typeFilter.filter((t) => t !== type) : [...typeFilter, type])}>{type}</Button>)}<Button size="sm" variant="ghost" onClick={() => setTypeFilter([...PEOPLE_TYPES])}>Show all types</Button></div>
 
-          {loading && !result && <LoadingState />}
+          {loading && !result && <LoadingState niches={form.niches.map((n) => n.name)} />}
           {loading && result?.ok && <LoadingState enriching />}
           {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
           {result && !result.ok && <div className="border-y py-8 text-muted-foreground">{result.error}</div>}
@@ -215,11 +215,19 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return <div className="space-y-2"><Label className="text-xs font-normal text-muted-foreground">{label}</Label>{children}{hint && <p className="text-xs leading-5 text-muted-foreground">{hint}</p>}</div>;
 }
 
-const STEPS = ["Searching funding rounds since 2024…", "Grouping deals by investor…", "Checking each investor's recent activity…"];
-function LoadingState({ enriching = false }: { enriching?: boolean }) {
-  const [step, setStep] = useState(0);
-  useEffect(() => { const timer = setInterval(() => setStep((current) => (current + 1) % STEPS.length), 3500); return () => clearInterval(timer); }, []);
-  return <div role="status" className="mb-6 space-y-3 py-4"><div aria-hidden="true" className="h-px overflow-hidden bg-border"><div className="progress-slide h-full w-1/3 bg-primary" /></div><p className="text-sm text-muted-foreground">{enriching ? "Checking each investor's recent activity…" : STEPS[step]}</p></div>;
+const FOUNDER_TIPS = ["Angels usually decide faster than funds", "A warm intro works better than a cold email", "Investors who led a round are the ones to talk to first", "Look for investors who invested in the last 12 months"];
+function LoadingState({ enriching = false, niches = [] }: { enriching?: boolean; niches?: string[] }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setElapsed((current) => current + 1), 1000); return () => clearInterval(timer); }, []);
+  const steps = [`Reading real deals in ${niches.length ? niches.join(", ") : "your industries"}`, "Finding who led each round", "Checking who is still active", "Ranking investors for you"];
+  const current = Math.min(Math.floor(elapsed / 15), steps.length - 1);
+  const bar = <div aria-hidden="true" className="h-px overflow-hidden bg-border"><div className="progress-slide h-full w-1/3 bg-primary" /></div>;
+  if (enriching) return <div role="status" className="mb-6 space-y-3 py-4">{bar}<p className="text-sm text-muted-foreground">Looking for more deals…</p></div>;
+  return <div role="status" className="mb-6 space-y-4 py-4">{bar}
+    <ol className="space-y-2 text-sm">{steps.map((label, i) => <li key={label} className={`flex items-center gap-2 ${i <= current ? "text-foreground" : "text-muted-foreground"}`}><span aria-hidden="true" className="w-4">{i < current ? "✓" : i === current ? "•" : ""}</span><span>{label}{i < current ? <span className="sr-only"> (done)</span> : ""}</span></li>)}</ol>
+    <div className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground" aria-live="off">{FOUNDER_TIPS[Math.floor(elapsed / 6) % FOUNDER_TIPS.length]}</div>
+    <p className="text-xs text-muted-foreground">Real searches take about a minute. The example loads instantly.</p>
+  </div>;
 }
 
 function SourceLink({ url, label = "source" }: { url?: string | undefined; label?: string }) {

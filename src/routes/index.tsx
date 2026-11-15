@@ -201,7 +201,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
         <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span>{inv.active && <Badge className="bg-success text-success-foreground hover:bg-success">Active</Badge>}</span>
-          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} {inv.matchedDeals.flatMap((d) => d.niches ?? []).find((n) => founder.niches.some((f) => f.name === n)) ?? founder.category} startup{inv.deals === 1 ? "" : "s"} at pre-seed / seed</span>
+          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} early-stage startup{inv.deals === 1 ? "" : "s"} · {[...new Set(inv.matchedDeals.flatMap((d) => d.niches ?? []))].join(" / ") || founder.category}</span>
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>

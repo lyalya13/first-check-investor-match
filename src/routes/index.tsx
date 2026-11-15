@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, type RegionFilter } from "@/lib/matching";
 import { Skeleton } from "@/components/ui/skeleton";
 import { findInvestors, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { IndustryPicker } from "@/components/industry-picker";
@@ -28,7 +30,7 @@ export const Route = createFileRoute("/")({
 });
 
 const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "", stage: "pre-seed", amount: 0, website: "" };
-const eur = (n: number | null) => (n ? new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, notation: n >= 1e6 ? "compact" : "standard" }).format(n) : "—");
+const eur = (n: number | null) => (n ? new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, notation: n >= 1e6 ? "compact" : "standard" }).format(n) : "Unknown");
 
 type Result = Awaited<ReturnType<typeof findInvestors>>;
 
@@ -39,11 +41,12 @@ function Index() {
   const [result, setResult] = useState<Result | null>(null);
   const [starred, setStarred] = useState<Record<string, boolean>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
   const [filter, setFilter] = useState<InvestorFilter>("All");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setResult(null); setStarred({}); setMessages({}); setFilter(defaultFilter(form.amount));
+    setLoading(true); setResult(null); setStarred({}); setMessages({}); setFilter(defaultFilter(form.amount)); setRegionFilter("All");
     try { setResult(await find({ data: { ...form, website: form.website || undefined } })); }
     catch { setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
     finally { setLoading(false); }
@@ -52,15 +55,15 @@ function Index() {
   const exportCsv = () => {
     const rows = (result?.investors ?? []).filter((i) => starred[i.name]);
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [["name", "type", "active", "deals", "round_size", "why", "source", "message"].join(","),
-      ...rows.map((i) => [i.name, i.type, i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, form), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? ""].map(esc).join(","))].join("\n");
+    const csv = [["name", "type", "active", "deals", "round_size", "why", "source", "message", "match_level", "investor_region", "top_niches", "linkedin", "intro_companies"].join(","),
+      ...rows.map((i) => [i.name, i.type, i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, form), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? "", scoreMatch(i, form).level, i.region, topNiches(i.matchedDeals).join("; ") || "Unknown", linkedinLink(i.name, i.linkedin).url, introDeals(i.matchedDeals, form.niches).map((d) => d.company).join("; ")].map(esc).join(","))].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "first-check-shortlist.csv"; a.click();
   };
   const starCount = Object.values(starred).filter(Boolean).length;
   const showResults = loading || result;
-  const visibleInvestors = filterInvestors(result?.investors ?? [], filter);
+  const visibleInvestors = filterByRegion(filterInvestors(result?.investors ?? [], filter), regionFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-8 sm:px-8 sm:py-12">
@@ -117,10 +120,11 @@ function Index() {
           {result?.ok && result.investors.length > 0 && (
             <>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "default" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
               {result.cached && <p className="mb-3 text-xs text-muted-foreground">Saved Cala results · {result.fetchedAt.slice(0, 10)}{result.stale ? " · Last available results" : ""}</p>}
               {result.broadened && <p className="mb-4 text-sm text-muted-foreground">Broader category matches included: fewer than 5 niche deals were found.</p>}
-              {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No funds found in these matches.</p>}
+              {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No investors found with these filters.</p>}
               <h2 className="mb-2 mt-7 text-xs font-semibold text-muted-foreground">Who to ask first</h2>
               <ol className="divide-y border-y">
                 {visibleInvestors.map((inv) => (
@@ -138,8 +142,7 @@ function Index() {
 }
 
 function whyFit(i: InvestorResult, f: FounderInput) {
-  const niches = [...new Set(i.matchedDeals.flatMap((d) => d.niches ?? []))].join(", ");
-  return `Backed ${i.deals} early-stage deal${i.deals > 1 ? "s" : ""} matching ${niches || f.industry} in ${f.region}${i.led ? `, leading ${i.led}` : ""}${i.active ? ", still active" : ""}.`;
+  return scoreMatch(i,f).reasons.join(" · ") || "Unknown";
 }
 
 function AmountTip({ amount }: { amount: number }) {
@@ -170,8 +173,9 @@ function LoadingState() {
 }
 
 function SourceLink({ url, label = "source" }: { url?: string | undefined; label?: string }) {
-  if (!url) return null;
-  return <a href={url} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
+  const verified = safeUrl(url);
+  if (!verified) return <span className="ml-1 text-xs text-muted-foreground">{label}: Unknown</span>;
+  return <a href={verified} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
 }
 
 function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage }: {
@@ -182,6 +186,12 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
   const [expanded, setExpanded] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [err, setErr] = useState("");
+  const [modal, setModal] = useState(false);
+  const [modalTitle, setModalTitle] = useState("Draft message");
+  const [draftText, setDraftText] = useState("");
+  const match = scoreMatch(inv, founder);
+  const niches = topNiches(inv.matchedDeals);
+  const linkedin = linkedinLink(inv.name, inv.linkedin);
   const [copied, setCopied] = useState(false);
   const dealSrc = inv.sources[0] ?? inv.summarySources[0]?.url;
   const fit = ticketFit(inv.typicalTicket, founder.amount);
@@ -190,7 +200,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
     setDrafting(true); setErr("");
     try {
       const r = await draft({ data: { founder: { ...founder, website: founder.website || undefined }, investor: { name: inv.name, companies: inv.companies, summary: inv.summary.slice(0, 3000), led: inv.led, deals: inv.deals } } });
-      if (r.ok) onMessage(r.text); else setErr(r.error ?? "");
+      if (r.ok) { onMessage(r.text); setDraftText(r.text); setModalTitle(`Message to ${inv.name}`); setModal(true); } else setErr(r.error ?? "");
     } catch { setErr("Couldn't draft a message right now."); }
     finally { setDrafting(false); }
   };
@@ -200,15 +210,15 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       <Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span>{inv.active && <Badge className="bg-success text-success-foreground hover:bg-success">Active</Badge>}</span>
-          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} early-stage startup{inv.deals === 1 ? "" : "s"} · {[...new Set(inv.matchedDeals.flatMap((d) => d.niches ?? []))].join(" / ") || founder.category}</span>
+          <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span><Badge variant="outline">{match.level}</Badge>{inv.active && <Badge className="bg-success text-success-foreground hover:bg-success">Active</Badge>}</span>
+          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">Backed {inv.deals} early-stage startup{inv.deals === 1 ? "" : "s"} · {niches.join(" / ") || "Unknown"} · {inv.region || "Unknown"}</span>
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>
       {expanded && <div className="px-2 pb-6 sm:pl-18">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="capitalize">{inv.type}</Badge>
-          {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "unknown"}</Badge>}
+          {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</Badge>}
           {fit && <Badge variant="outline">{fit === "bigger" ? "Usually backs bigger rounds" : "Similar round size"}</Badge>}
           <Button variant="ghost" size="icon" title={starred ? "Remove from shortlist" : "Add to shortlist"} aria-label={starred ? "Remove from shortlist" : "Add to shortlist"} onClick={onStar}><Star className={starred ? "fill-foreground" : ""} /></Button>
         </div>
@@ -219,8 +229,17 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       {inv.companies.length > 0 && (
         <p className="mt-4 text-sm"><span className="text-muted-foreground">Portfolio: </span>{inv.companies.slice(0, 3).join(", ")}<SourceLink url={dealSrc} /></p>
       )}
-      <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">{inv.matchedDeals.map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span>{d.date ? ` · ${d.date}` : ""} · {d.niches?.join(" / ")}<SourceLink url={d.source} /></li>)}</ul>
-      <p className="mt-3 text-sm"><span className="text-muted-foreground">Why they fit: </span>{whyFit(inv, founder)}</p>
+      <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt className="text-muted-foreground">Investor location</dt><dd>{inv.location || "Unknown"}<SourceLink url={inv.profileSource} /></dd></div>
+        <div><dt className="text-muted-foreground">Invests mostly in</dt><dd>{niches.join(" / ") || "Unknown"}</dd></div>
+      </dl>
+      <h3 className="mt-5 text-xs font-semibold text-muted-foreground">Why this match</h3>
+      <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">{match.reasons.length ? match.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Unknown</li>}</ul>
+      <h3 className="mt-5 text-xs font-semibold text-muted-foreground">Recent investments</h3>
+      <ul className="mt-3 space-y-3 text-xs text-muted-foreground">{recentDeals(inv.matchedDeals).map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span> · {d.stage || "Unknown"} · {d.date ? d.datePrecision === "month" ? d.date.slice(0,7) : d.datePrecision === "year" ? d.date.slice(0,4) : d.date : "Unknown"}<SourceLink url={d.source} /><span className="mt-1 block">{d.focusNiches?.join(" / ") || "Unknown"} · {d.location || "Unknown"}</span><span className="mt-1 block">Found through: {d.niches?.join(" / ") || "Unknown"}</span></li>)}</ul>
+      <h3 className="mt-6 text-xs font-semibold text-muted-foreground">Get a warm intro</h3>
+      <p className="mt-2 text-xs text-muted-foreground">Founders they backed often give the warmest intros.</p>
+      <ul className="mt-3 space-y-4">{introDeals(inv.matchedDeals, founder.niches).map((d) => <li key={d.company} className="border-b pb-4 text-sm"><p className="font-medium">{d.company}<SourceLink url={d.source} /></p>{(d.founders?.length ? d.founders : [{ name: "Unknown" }]).map((person) => <div key={person.name} className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{person.name}</span><Button asChild variant="outline" size="sm"><a href={linkedinLink(person.name === "Unknown" ? d.company : person.name, person.linkedin).url} target="_blank" rel="noreferrer">Find on LinkedIn<ExternalLink className="size-3" /></a></Button><Button size="sm" variant="outline" onClick={() => { setDraftText(introMessage(founder.description, inv.name, d.company, person.name === "Unknown" ? undefined : person.name)); setModalTitle(`Ask for intro · ${person.name === "Unknown" ? d.company : person.name}`); setCopied(false); setModal(true); }}>Ask for intro</Button></div>)}</li>)}</ul>
       {inv.summary && (
         <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">{inv.summary}
           {inv.summarySources.slice(0, 3).map((s, i) => <SourceLink key={s.url} url={s.url} label={`[${i + 1}]`} />)}
@@ -228,6 +247,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       )}
 
       <div className="mt-5 flex flex-wrap gap-2">
+        <Button asChild size="sm" variant="outline"><a href={linkedin.url} target="_blank" rel="noreferrer">{linkedin.label}<ExternalLink className="size-3" /></a></Button>
         <Button size="sm" onClick={doDraft} disabled={drafting}>{drafting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{message ? "Redraft" : "Draft message"}</Button>
         <Button size="sm" variant="outline" onClick={() => setOpen(!open)}>How we found this <ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></Button>
       </div>
@@ -241,6 +261,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
           </div>
         </div>
       )}
+      <Dialog open={modal} onOpenChange={setModal}><DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto shadow-none"><DialogTitle className="pr-6">{modalTitle}</DialogTitle><DialogDescription>{inv.name}</DialogDescription><Textarea aria-label="Draft message text" rows={7} maxLength={499} value={draftText} onChange={(e) => { setDraftText(e.target.value); setCopied(false); }} /><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">{draftText.length}/500</span><Button variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(draftText); setCopied(true); } catch { setErr("Couldn’t copy. Please select the message and copy it."); } }}><Copy className="size-3" />{copied ? "Copied" : "Copy"}</Button></div></DialogContent></Dialog>
       {open && (
         <div className="mt-4 space-y-2 rounded-lg border bg-background p-4 font-mono text-xs break-words">
           <p><span className="text-muted-foreground">Deals query: </span>{query}</p>

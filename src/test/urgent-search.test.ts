@@ -4,8 +4,12 @@ import { similarStartups } from "@/lib/similar-startups";
 import { introMessage } from "@/lib/matching";
 import { dealQueryTarget } from "@/lib/deal-query";
 import { EXAMPLE } from "@/lib/example";
+import { calaSearchError } from "@/lib/cala-errors";
 
 describe("urgent search reliability", () => {
+  it("distinguishes exhausted provider timeouts from invalid input", () => {
+    expect(calaSearchError("CALA_TIMEOUT")).not.toBe(calaSearchError("Cala 400"));
+  });
   it("limits industry queries to two at once", async () => {
     let running = 0, peak = 0;
     await parallelMap([1, 2, 3], async () => { running++; peak = Math.max(peak, running); await Promise.resolve(); running--; }, CALA_SEARCH_CONCURRENCY);
@@ -58,6 +62,9 @@ describe("similar startups from existing Cala deals", () => {
   });
   it("shows existing similar industry deals when niches are not selected", () => {
     expect(similarStartups([{ matchedDeals: [deal] }], [])).toEqual([deal]);
+  });
+  it("includes company deals outside the top ten investor profiles", () => {
+    expect(similarStartups([], [{ name: "FemTech" }], [deal])).toEqual([deal]);
   });
   it("drafts a short introduction request from a returned founder relationship", () => {
     const draft = introMessage("a nutrition app", "Investor A", deal.company, "Returned Founder");

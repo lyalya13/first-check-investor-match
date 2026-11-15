@@ -128,7 +128,7 @@ function Index() {
 
       <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="People views"><Button role="tab" aria-selected={tab === "results"} variant={tab === "results" ? "secondary" : "outline"} onClick={() => setTab("results")}>Results</Button><Button role="tab" aria-selected={tab === "saved"} variant={tab === "saved" ? "secondary" : "outline"} onClick={() => setTab("saved")}><Bookmark className="size-4" />Saved ({saved.people.length + saved.searches.length})</Button><Button role="tab" aria-selected={tab === "startups"} variant={tab === "startups" ? "secondary" : "outline"} onClick={() => setTab("startups")}>Similar startups</Button></div>
       {storageNotice && <p role="status" className="mb-4 text-xs text-muted-foreground">{storageNotice}</p>}
-      {tab === "startups" && (result?.ok ? <SimilarStartups investors={result.investors} founder={form} /> : <p className="py-6 text-sm text-muted-foreground">{loading ? "Finding similar startups…" : "Run a search to see similar startups and their investors."}</p>)}
+      {tab === "startups" && (result?.ok ? <SimilarStartups investors={result.investors} founder={form} deals={result.deals} /> : <p className="py-6 text-sm text-muted-foreground">{loading ? "Finding similar startups…" : "Run a search to see similar startups and their investors."}</p>)}
       {tab === "saved" && <section>
         <h2 className="mb-2 font-semibold">Saved searches</h2>
         <p className="mb-4 text-sm text-muted-foreground">Your search choices, ready to run again. Saved investors are kept separately below.</p>

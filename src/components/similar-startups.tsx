@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dial
 import { similarStartups } from "@/lib/similar-startups";
 import { introMessage, nicheOverlap, safeUrl } from "@/lib/matching";
 import type { FounderInput, InvestorResult } from "@/lib/cala.functions";
+import type { Deal } from "@/lib/aggregate";
 import { toast } from "sonner";
 
-export function SimilarStartups({ investors, founder }: { investors: InvestorResult[]; founder: FounderInput }) {
-  const companies = similarStartups(investors, founder.niches);
+export function SimilarStartups({ investors, founder, deals }: { investors: InvestorResult[]; founder: FounderInput; deals?: Deal[] }) {
+  const companies = similarStartups(investors, founder.niches, deals);
   const [draft, setDraft] = useState<{ company: string; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   return <section>

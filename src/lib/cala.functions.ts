@@ -92,6 +92,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       let deals: Deal[] = [];
       let successfulQueries = 0;
       let rateLimited = false;
+      let timedOut = false;
       let partial = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
@@ -107,6 +108,7 @@ export const findInvestors = createServerFn({ method: "POST" })
         } catch (e) {
           console.error(`[cala] Query failed for ${niche}`, (e as Error).message);
           if ((e as Error).message === "Cala 429") rateLimited = true;
+          if (/timeout|aborted/i.test((e as Error).message)) timedOut = true;
           if ((e as Error).message === "MISSING_KEY") throw e;
           partial = true;
           return [];
@@ -115,14 +117,14 @@ export const findInvestors = createServerFn({ method: "POST" })
       const industries = dealSearchIndustries(data);
       deals = mergeDeals((await parallelMap(industries, tryQuery, CALA_SEARCH_CONCURRENCY)).flat());
       const broadened = false;
-      if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
+      if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : timedOut ? "CALA_TIMEOUT" : "CALA_UNAVAILABLE");
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
 
       const investors: InvestorResult[] = aggregateInvestors(deals).slice(0, 10).map((inv) => ({
         ...inv, type: investorType(inv.name, ""), kind: classifyInvestor(inv.name), summary: "", summarySources: [],
         summaryQuery: `${inv.name} recent investments and investment focus`, region: "Unknown",
       }));
-      return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened, partial, enrichmentPending: investors.length > 0 };
+      return { ok: true as const, investors, deals, queries, dealCount: deals.length, diagnostics, broadened, partial, enrichmentPending: investors.length > 0 };
       } });
       console.log("[cala timing] grouped search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - started), cached: resolved.cached, deals: resolved.result.dealCount }));
       return { ...resolved.result, investors: resolved.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })), cached: resolved.cached, stale: resolved.stale, fetchedAt: resolved.fetchedAt };

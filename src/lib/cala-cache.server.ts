@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { InvestorResult } from "./cala.functions";
 
-export type SearchResult = { ok: true; investors: InvestorResult[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean };
+export type SearchResult = { ok: true; investors: InvestorResult[]; deals?: import("./aggregate").Deal[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean };
 
 export async function readSearchCache(key: string) {
   const url = process.env["SUPABASE_URL"];

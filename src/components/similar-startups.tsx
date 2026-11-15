@@ -9,7 +9,7 @@ import type { FounderInput, InvestorResult } from "@/lib/cala.functions";
 import type { Deal } from "@/lib/aggregate";
 import { toast } from "sonner";
 
-export function SimilarStartups({ investors, founder, deals }: { investors: InvestorResult[]; founder: FounderInput; deals?: Deal[] }) {
+export function SimilarStartups({ investors, founder, deals }: { investors: InvestorResult[]; founder: FounderInput; deals?: Deal[] | undefined }) {
   const companies = similarStartups(investors, founder.niches, deals);
   const [draft, setDraft] = useState<{ company: string; text: string } | null>(null);
   const [copied, setCopied] = useState(false);

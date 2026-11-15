@@ -35,6 +35,12 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-star: var(--star);
+  --color-selection-border: var(--selection-border);
+  --color-match-high: var(--match-high);
+  --color-match-medium: var(--match-medium);
+  --color-match-low: var(--match-low);
+  --color-skeleton: var(--skeleton);
+  --color-skeleton-shimmer: var(--skeleton-shimmer);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -81,27 +87,33 @@
   color-scheme: dark;
   --radius: 0.5rem;
   --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
+  --foreground: #F5F1E8;
   --card: oklch(0.17764 0 0);
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
-  --primary: oklch(1 0 0);
+  --primary: var(--foreground);
   --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.71 0.051 139);
-  --secondary-foreground: oklch(0 0 0);
+  --secondary: #012169;
+  --secondary-foreground: var(--foreground);
   --muted: var(--card);
-  --muted-foreground: oklch(0.78264 0 0);
+  --muted-foreground: #B8B2A7;
   --accent: var(--secondary);
   --accent-foreground: var(--secondary-foreground);
   --destructive: var(--foreground);
   --destructive-foreground: var(--background);
   --success: var(--secondary);
   --success-foreground: var(--secondary-foreground);
-  --star: var(--foreground);
-  --border: oklch(0.25196 0 0);
-  --input: var(--muted-foreground);
-  --ring: var(--secondary);
+  --star: #C9A96E;
+  --match-high: var(--star);
+  --match-medium: #C0C0C8;
+  --match-low: #8A8A8A;
+  --border: #2A2A2A;
+  --input: #6B6560;
+  --selection-border: #3557C7;
+  --ring: var(--selection-border);
+  --skeleton: #161616;
+  --skeleton-shimmer: #202020;
   --chart-1: var(--secondary);
   --chart-2: var(--foreground);
   --chart-3: var(--muted-foreground);
@@ -131,6 +143,8 @@
 }
 
 @keyframes pulse-soft { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
+@keyframes skeleton-shimmer { 0%,100% { background-color: var(--skeleton); } 50% { background-color: var(--skeleton-shimmer); } }
+@utility skeleton-shimmer { animation: skeleton-shimmer 2s ease-in-out infinite; }
 @layer utilities {
   .animate-pulse-soft { animation: pulse-soft 1.6s ease-in-out infinite; }
 }

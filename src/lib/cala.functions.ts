@@ -114,7 +114,7 @@ export const findInvestors = createServerFn({ method: "POST" })
     } catch (e) {
       console.log("[cala timing] failed search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - searchStarted) }));
       const msg = (e as Error).message;
-      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala's request limit has been reached. Please wait a few minutes before searching again." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
+      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala is busy, try again in a minute" : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
     }
   });
 

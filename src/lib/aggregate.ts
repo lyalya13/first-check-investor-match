@@ -6,6 +6,12 @@ export type Deal = {
   date?: string | undefined;
   source?: string | undefined;
   niches?: string[];
+  focusNiches?: string[];
+  stage?: string;
+  location?: string;
+  founders?: { name: string; linkedin?: string }[];
+  companyLinkedin?: string;
+  datePrecision?: "day" | "month" | "year";
 };
 
 export type InvestorAgg = {

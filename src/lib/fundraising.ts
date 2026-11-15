@@ -1,14 +1,14 @@
 export const CATEGORIES = {
-  "Health & Wellbeing": ["FemTech", "Women's Health", "Menstrual & Hormonal Health", "Fertility", "Mental Health", "Sleep", "Fitness", "Digital Therapeutics"],
-  "Food & Nutrition": ["Nutrition Apps", "Meal Planning", "Food Waste", "Alternative Proteins", "Grocery Tech", "Restaurant Tech"],
-  "Climate & Sustainability": ["Circular Economy", "Food Waste", "Textile Recycling", "Energy", "Carbon"],
-  Fintech: ["Payments", "Personal Finance", "InsurTech", "Lending", "Financial Inclusion", "Embedded Finance"],
-  AI: ["AI Agents", "Applied AI", "AI Infrastructure", "Computer Vision", "Voice AI", "AI Safety"],
-  Education: ["Early Learning", "Learning Apps", "Teacher Tools", "Skills Training", "Language Learning", "Special Education"],
-  "Consumer & E-commerce": ["Marketplaces", "Social Commerce", "Beauty Tech", "Parenting", "Creator Tools", "Resale"],
-  "Enterprise Software": ["HR Tech", "Cybersecurity", "Developer Tools", "Workflow Automation", "Sales Tools", "Supply Chain"],
-  Mobility: ["Electric Vehicles", "Charging", "Micromobility", "Fleet Software", "Public Transit", "Last-mile Delivery"],
-  Other: ["Space Tech", "Robotics", "Travel Tech", "PropTech", "Legal Tech", "Pet Tech"],
+  "Health & Wellbeing": ["FemTech", "Women's Health", "Fertility", "Pregnancy and postpartum", "Menopause", "Cycle tracking", "Sexual health", "Mental health therapy", "Sleep monitoring", "Fitness coaching", "Digital therapeutics"],
+  "Food & Nutrition": ["Meal Planning", "Personalized nutrition", "Food Waste", "Alternative Proteins", "Precision fermentation", "Grocery inventory", "Restaurant ordering", "Nutrition Apps"],
+  "Climate & Sustainability": ["Circular packaging", "Food Waste", "Textile Recycling", "Battery recycling", "Solar energy", "Grid storage", "Carbon removal", "Carbon accounting"],
+  Fintech: ["Cross-border payments", "Personal budgeting", "Embedded insurance", "SME lending", "Financial inclusion", "Embedded payments", "Fraud detection"],
+  AI: ["Customer support agents", "Coding agents", "Model infrastructure", "Industrial computer vision", "Voice assistants", "AI evaluation", "AI safety"],
+  Education: ["Early literacy", "Math learning", "Teacher planning", "Workforce reskilling", "Language learning", "Special education", "Student assessment"],
+  "Consumer & E-commerce": ["B2C marketplaces", "Social commerce", "Personalized skincare", "Parenting support", "Creator monetization", "Fashion resale", "Subscription commerce"],
+  "Enterprise Software": ["Recruitment software", "Cloud security", "Developer tooling", "Workflow automation", "Sales intelligence", "Supply chain planning", "Employee learning"],
+  Mobility: ["Electric vehicle batteries", "EV charging", "Shared micromobility", "Fleet optimization", "Public transit planning", "Last-mile Delivery", "Autonomous logistics"],
+  Other: ["Satellite analytics", "Warehouse robotics", "Travel booking", "Property management", "Legal automation", "Pet health"],
 } as const;
 export type Category = keyof typeof CATEGORIES;
 export type NicheSelection = { category: Category; name: string };

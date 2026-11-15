@@ -28,12 +28,16 @@ async function cala(path: string, init?: RequestInit): Promise<any> {
   });
   const text = await res.text();
   console.log(`[cala] ${init?.method ?? "GET"} ${path} -> ${res.status}: ${text.slice(0, 6000)}`);
+  if (res.status === 429 && !(init?.headers as Record<string, string> | undefined)?.['X-Retry']) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    return cala(path, { ...init, headers: { ...(init?.headers ?? {}), 'X-Retry': '1' } });
+  }
   if (!res.ok) throw new Error(`Cala ${res.status}`);
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 
 function sourcesOf(data: any): { title: string; url: string }[] {
-  const s = data?.sources ?? data?.citations ?? data?.references ?? [];
+  const s = data?.sources ?? data?.citations ?? data?.references ?? data?.context?.flatMap((fact: any) => (fact.origins ?? []).map((origin: any) => ({ title: origin.document?.title ?? origin.source?.name, url: origin.document?.url ?? origin.document?.uri ?? origin.source?.url }))) ?? [];
   if (!Array.isArray(s)) return [];
   return s.map((x: any) => typeof x === "string" ? { title: x, url: x } : { title: x.title ?? x.name ?? x.url ?? "Source", url: x.url ?? x.link ?? x.href ?? "" })
     .filter((x: any) => x.url).slice(0, 5);
@@ -85,12 +89,16 @@ export const findInvestors = createServerFn({ method: "POST" })
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
 
       const top = aggregateInvestors(deals).slice(0, 10);
-      const investors: InvestorResult[] = await Promise.all(top.map(async (inv) => {
+      const investors: InvestorResult[] = [];
+      for (let offset = 0; offset < top.length; offset += 2) {
+        const batch = await Promise.all(top.slice(offset, offset + 2).map(async (inv) => {
         const q = `${inv.name} recent investments and investment focus`;
         let summary = "", src: { title: string; url: string }[] = [];
         try { const r = await cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: q }) }); summary = answerOf(r); src = sourcesOf(r); } catch {}
         return { ...inv, type: investorType(inv.name, summary), summary, summarySources: src, summaryQuery: q };
-      }));
+        }));
+        investors.push(...batch);
+      }
 
       return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened };
     } catch (e) {

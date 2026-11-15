@@ -71,6 +71,6 @@ export const MIN_NICHE_DEALS = 5;
 
 export function investorType(name: string, profile: string): "angel" | "fund" {
   const intro = profile.slice(0, 650);
-  return /capital|ventures|\bvc\b|fund|partners|invest|labs|angels|group|holding|\bab\b|gmbh|ltd|inc/i.test(name)
+  return /capital|ventures|\bvc\b|fund|partners|invest|labs?|angels|group|holding|\bab\b|gmbh|ltd|inc/i.test(name)
     || /venture capital|private equity|investment (?:firm|arm|company)|venture (?:firm|fund)|accelerator|angel network/i.test(intro) ? "fund" : "angel";
 }

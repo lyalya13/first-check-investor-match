@@ -147,7 +147,7 @@ export const extendInvestorSearch = createServerFn({ method: "POST" })
     const { readSearchCache, storeSearchCache } = await import("./cala-cache.server");
     const key = searchCacheKey(data);
     const cached = await readSearchCache(key).catch(() => null);
-    if (cached && !cached.result.fallbackPending) return { ok: true as const, ...cached.result, investors: cached.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })) };
+    if (cached && !cached.result.fallbackPending) return { ...cached.result, ok: true as const, investors: cached.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })) };
     const q = combinedDealQueries(data).fallback;
     let found: Deal[] = [];
     let failed = "";

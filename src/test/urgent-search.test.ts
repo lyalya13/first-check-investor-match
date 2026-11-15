@@ -77,3 +77,11 @@ describe("similar startups from existing Cala deals", () => {
     expect(draft).toContain("introducing me"); expect(draft.length).toBeLessThan(500);
   });
 });
+describe("combined Cala queries", () => {
+  it("combines niches, countries, stage and B2C into one structured and one fallback query", async () => {
+    const { combinedDealQueries } = await import("@/lib/deal-query");
+    const q = combinedDealQueries({ ...EXAMPLE, regions: ["Finland", "Europe"], businessModels: ["B2C"] });
+    expect(Object.keys(q)).toHaveLength(2);
+    for (const text of [q.structured, q.fallback]) { expect(text).toContain("FemTech"); expect(text).toContain("Food Waste"); expect(text).toContain("Finland"); expect(text).toContain("Europe"); expect(text).toContain("B2C"); expect(text).toContain("Pre-seed"); }
+  });
+});

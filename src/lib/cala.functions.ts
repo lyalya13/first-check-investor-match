@@ -61,6 +61,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       const queries: string[] = [];
       let deals: Deal[] = [];
       let successfulQueries = 0;
+      let rateLimited = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
         const q = `Find pre-seed or seed funding rounds announced since January 1, 2024 for ${niche} startups in ${data.region}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), date (YYYY-MM-DD), source (article URL). Only include real rounds with named investors. Limit 100.`;
@@ -74,18 +75,20 @@ export const findInvestors = createServerFn({ method: "POST" })
           return parsed;
         } catch (e) {
           console.error(`[cala] Query failed for ${niche}`, (e as Error).message);
+          if ((e as Error).message === "Cala 429") rateLimited = true;
           if ((e as Error).message === "MISSING_KEY") throw e;
           return [];
         }
       };
       const niches = [...new Set(data.niches.map((n) => n.name))];
       deals = mergeDeals((await Promise.all(niches.map(tryQuery))).flat());
+      if (niches.length && !successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
       const broadened = !niches.length || deals.length < MIN_NICHE_DEALS;
       if (broadened) {
         const categories = [...new Set([data.category, ...data.niches.map((n) => n.category)])];
         deals = mergeDeals([...deals, ...(await Promise.all(categories.map(tryQuery))).flat()]);
       }
-      if (!successfulQueries) throw new Error("CALA_UNAVAILABLE");
+      if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
 
       const top = aggregateInvestors(deals).slice(0, 10);
@@ -103,7 +106,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened };
     } catch (e) {
       const msg = (e as Error).message;
-      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
+      return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala's request limit has been reached. Please wait a few minutes before searching again." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };
     }
   });
 

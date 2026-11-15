@@ -1,4 +1,7 @@
 # First Check improvements
+- [ ] Add three-industry niche searches, multiple business models and regions, and all four stages.
+- [ ] Add founder-friendly hints, visible guidance and independent investor-type chips.
+- [ ] Preserve the real cached example and saved features; run tests and verify at 390px.
 - [x] Apply minimal light theme, compact people list, quiet guidance and thin progress loading.
 - [x] Clarify Typical ticket with round-size caption and calm Cala rate-limit messaging.
 - [x] Preserve saved features and cache; all 71 tests pass, verified desktop/mobile and cached example (11 deals, 10 investors, 0.85s).

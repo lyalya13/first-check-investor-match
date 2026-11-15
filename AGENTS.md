@@ -31,7 +31,7 @@ use the editor.
 
 - Keep category selections and fundraising thresholds in a client-safe shared module so the UI and tests use identical rules.
 - Parse Cala responses in a pure adapter and merge deals by normalized company plus date, preserving every query's niche provenance.
-- Query selected niches independently with OR semantics; broaden to all selected categories when fewer than five unique deals return.
+- Query only primary and optional secondary broad industries independently (at most two deal calls); use optional niches exclusively for ranking, never extra provider calls.
 - Persist provider-produced search results in Cloud with normalized shared cache keys and 24-hour freshness; retain stale results for provider failures and a durable example snapshot so demo searches never depend on Cala availability.
 - Keep cache reads public and cache writes server-owned, accepting only validated inputs and provider-produced output, so callers cannot inject stored investor data.
 - Render investor summaries as expandable rows and preserve all outreach, sourcing and shortlist controls inside the expanded details, keeping the mobile list scannable.
@@ -41,3 +41,6 @@ use the editor.
 - Keep founder-intro drafts deterministic and editable using only returned portfolio relationships; never ask AI to supply missing founder facts.
 - Return cached provider-produced grouped deals before enrichment; enrich each investor in its own parallel invocation and consolidate server-owned profile cache rows, so progressive updates never accept caller-supplied facts.
 - Limit Cala calls to 20 seconds and six concurrent outbound requests per invocation; avoid retries on the interactive path so timeouts do not multiply.
+
+- Store named searches and full investor/founder snapshots in versioned browser storage with guarded reads/writes; saved views and CSV must not depend on the current results.
+- Use explicit provider investor types and company business models for filters; missing classifications stay Unknown instead of guessing from names.

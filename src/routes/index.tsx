@@ -233,8 +233,6 @@ function InvestorCard({ inv: rawInv, founder, query, starred, onStar, message, o
   savedPeople: SavedPerson[]; onSavePerson: (person: SavedPerson) => void;
   inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string | undefined; onMessage: (m: string) => void;
 }) {
-  const [profileState] = [null];
-  void profileState;
   const savedInvestor = savedPeople.find((person) => person.id === personId("investor", rawInv.name));
   const draft = useServerFn(draftMessage);
   const [open, setOpen] = useState(false);
@@ -252,6 +250,7 @@ function InvestorCard({ inv: rawInv, founder, query, starred, onStar, message, o
         .catch(() => {}).finally(() => setProfileLoading(false));
     }
   };
+  const inv = profile ?? rawInv;
   const [drafting, setDrafting] = useState(false);
   const [err, setErr] = useState("");
   const [modal, setModal] = useState(false);
@@ -275,7 +274,7 @@ function InvestorCard({ inv: rawInv, founder, query, starred, onStar, message, o
 
   return (
     <li className="bg-card py-1">
-      <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-20 w-full justify-start gap-3 rounded-xl px-3 py-3 text-left whitespace-normal">
+      <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={toggleExpanded} className="h-auto min-h-20 w-full justify-start gap-3 rounded-xl px-3 py-3 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2"><span className="text-[15px] font-semibold">{inv.name}</span><span className="text-xs font-normal text-muted-foreground">{classifyInvestor(inv.name, inv.kind && inv.kind !== "Unknown" ? inv.kind : inv.summary)}</span>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
@@ -286,6 +285,7 @@ function InvestorCard({ inv: rawInv, founder, query, starred, onStar, message, o
       <Button variant="ghost" size="icon" className="mr-2 shrink-0" title={starred ? "Remove saved investor" : "Save investor"} aria-label={starred ? `Remove saved ${inv.name}` : `Save ${inv.name}`} onClick={onStar}><Bookmark className={starred ? "fill-star text-star" : ""} /></Button></div>
       {savedInvestor && <div className="px-4 pb-3 sm:pl-18"><OutreachStatusPill person={savedInvestor} onCycle={onCycleStatus} /></div>}
       {expanded && <div className="px-2 pb-6 sm:pl-18">
+        {profileLoading && <p className="mb-2 text-xs text-muted-foreground">Loading profile details…</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{match.level}</Badge>
           {!inv.active && <span className="text-xs text-muted-foreground">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</span>}

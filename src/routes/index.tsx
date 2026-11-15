@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { findInvestors, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
+import { IndustryPicker } from "@/components/industry-picker";
+import { guidanceTier, defaultFilter, filterInvestors, ticketFit, type InvestorFilter } from "@/lib/fundraising";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,13 +28,15 @@ export const Route = createFileRoute("/")({
 
 const EXAMPLE: FounderInput = {
   description: "Fée: cycle-aware weekly meal planner for women, one shopping list, less food waste",
-  industry: "consumer health / food tech",
+  industry: "FemTech, Women's Health, Meal Planning, Food Waste",
+  category: "Health & Wellbeing",
+  niches: [{ category: "Health & Wellbeing", name: "FemTech" }, { category: "Health & Wellbeing", name: "Women's Health" }, { category: "Food & Nutrition", name: "Meal Planning" }, { category: "Food & Nutrition", name: "Food Waste" }],
   region: "Nordics / Europe",
   stage: "pre-seed",
   amount: 40000,
   website: "",
 };
-const EMPTY: FounderInput = { description: "", industry: "", region: "", stage: "pre-seed", amount: 0, website: "" };
+const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "", stage: "pre-seed", amount: 0, website: "" };
 const eur = (n: number | null) => (n ? new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, notation: n >= 1e6 ? "compact" : "standard" }).format(n) : "—");
 
 type Result = Awaited<ReturnType<typeof findInvestors>>;
@@ -44,10 +48,11 @@ function Index() {
   const [result, setResult] = useState<Result | null>(null);
   const [starred, setStarred] = useState<Record<string, boolean>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<InvestorFilter>("All");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setResult(null);
+    setLoading(true); setResult(null); setStarred({}); setMessages({}); setFilter(defaultFilter(form.amount));
     try { setResult(await find({ data: { ...form, website: form.website || undefined } })); }
     catch { setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
     finally { setLoading(false); }
@@ -64,6 +69,7 @@ function Index() {
   };
   const starCount = Object.values(starred).filter(Boolean).length;
   const showResults = loading || result;
+  const visibleInvestors = filterInvestors(result?.investors ?? [], filter);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-10 sm:py-16">
@@ -79,7 +85,7 @@ function Index() {
             <Textarea required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Scheduling app for independent physiotherapists" />
           </Field>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Industry"><Input required value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} placeholder="e.g. health tech" /></Field>
+            <div className="sm:col-span-2"><Field label="Industry & niches"><IndustryPicker category={form.category} niches={form.niches} onChange={(category, niches) => setForm({ ...form, category, niches, industry: niches.length ? niches.map((n) => n.name).join(", ") : category })} /></Field></div>
             <Field label="Country or region"><Input required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="e.g. Germany" /></Field>
             <Field label="Stage">
               <div className="grid grid-cols-2 gap-2">
@@ -88,9 +94,17 @@ function Index() {
                 ))}
               </div>
             </Field>
-            <Field label="Amount raising (€)"><Input required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /></Field>
+            <Field label="Amount raising (€)"><Input aria-label="Amount raising (€)" required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /><AmountTip amount={form.amount} /></Field>
           </div>
           <Field label="Website (optional)"><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" /></Field>
+          <details className="rounded-lg border bg-muted/40 p-4 text-sm">
+            <summary className="cursor-pointer font-medium">New to fundraising? 3 things to know</summary>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-muted-foreground">
+              <li>Angels usually come before funds at pre-seed.</li>
+              <li>Look for investors who still invest today, not 3 years ago.</li>
+              <li>Investors who led a round are the ones to talk to first, others usually follow a lead.</li>
+            </ol>
+          </details>
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="ghost" onClick={() => setForm(EXAMPLE)}><Sparkles className="size-4" /> Try with an example</Button>
             <Button type="submit" size="lg">Find investors</Button>
@@ -111,10 +125,13 @@ function Index() {
           )}
           {result?.ok && result.investors.length > 0 && (
             <>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
+              {result.broadened && <p className="mb-4 text-sm text-muted-foreground">Broader category matches included: fewer than 5 niche deals were found.</p>}
+              {visibleInvestors.length === 0 && <p className="py-5 text-sm text-muted-foreground">No funds found in these matches.</p>}
               <ol className="space-y-4">
-                {result.investors.map((inv, i) => (
-                  <InvestorCard key={inv.name} rank={i + 1} inv={inv} founder={form} query={result.queries[result.queries.length - 1]}
+                {visibleInvestors.map((inv, i) => (
+                  <InvestorCard key={inv.name} rank={i + 1} inv={inv} founder={form} query={result.queries.join("\n\n")}
                     starred={!!starred[inv.name]} onStar={() => setStarred((s) => ({ ...s, [inv.name]: !s[inv.name] }))}
                     message={messages[inv.name]} onMessage={(m) => setMessages((s) => ({ ...s, [inv.name]: m }))} />
                 ))}
@@ -128,7 +145,18 @@ function Index() {
 }
 
 function whyFit(i: InvestorResult, f: FounderInput) {
-  return `Backed ${i.deals} ${f.stage === "seed" ? "seed-stage" : "early"} ${f.industry.split("/")[0]?.trim()} deal${i.deals > 1 ? "s" : ""} in ${f.region.split("/")[0]?.trim()}${i.led ? `, leading ${i.led}` : ""}${i.active ? ", still active" : ""}.`;
+  const niches = [...new Set(i.matchedDeals.flatMap((d) => d.niches ?? []))].join(", ");
+  return `Backed ${i.deals} early-stage deal${i.deals > 1 ? "s" : ""} matching ${niches || f.industry} in ${f.region}${i.led ? `, leading ${i.led}` : ""}${i.active ? ", still active" : ""}.`;
+}
+
+function AmountTip({ amount }: { amount: number }) {
+  const tier = guidanceTier(amount);
+  return <p className="text-xs leading-relaxed text-muted-foreground">
+    {tier === "small" && <>At this size, start with <strong>angels</strong>, <strong>grants and equity-free competitions</strong>, and <strong>accelerators</strong>. Funds rarely write checks this small.</>}
+    {tier === "angels" && <>Start with <strong>angels, angel networks and syndicates</strong>, and pre-seed programs.</>}
+    {tier === "preseed" && <>Start with <strong>angels and pre-seed funds</strong>. Larger VCs usually come in later.</>}
+    {tier === "seed" && <><strong>Seed funds and VCs</strong> fit this size.</>}
+  </p>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -162,6 +190,7 @@ function InvestorCard({ rank, inv, founder, query, starred, onStar, message, onM
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
   const dealSrc = inv.sources[0] ?? inv.summarySources[0]?.url;
+  const fit = ticketFit(inv.typicalTicket, founder.amount);
 
   const doDraft = async () => {
     setDrafting(true); setErr("");
@@ -183,6 +212,7 @@ function InvestorCard({ rank, inv, founder, query, starred, onStar, message, onM
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant="secondary" className="capitalize">{inv.type}</Badge>
             {inv.active ? <Badge className="bg-success text-success-foreground hover:bg-success">Active</Badge> : <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "unknown"}</Badge>}
+            {fit && <Badge variant="secondary">{fit === "bigger" ? "Usually writes much bigger checks" : "Ticket fits your round"}</Badge>}
           </div>
         </div>
         <Button variant="ghost" size="icon" aria-label={starred ? "Remove from shortlist" : "Add to shortlist"} onClick={onStar}>
@@ -197,6 +227,7 @@ function InvestorCard({ rank, inv, founder, query, starred, onStar, message, onM
       {inv.companies.length > 0 && (
         <p className="mt-4 text-sm"><span className="text-muted-foreground">Portfolio: </span>{inv.companies.slice(0, 3).join(", ")}<SourceLink url={dealSrc} /></p>
       )}
+      <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">{inv.matchedDeals.map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span>{d.date ? ` · ${d.date}` : ""} · {d.niches?.join(" / ")}<SourceLink url={d.source} /></li>)}</ul>
       <p className="mt-3 text-sm"><span className="text-muted-foreground">Why they fit: </span>{whyFit(inv, founder)}</p>
       {inv.summary && (
         <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">{inv.summary}

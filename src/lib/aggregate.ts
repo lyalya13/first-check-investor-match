@@ -5,6 +5,7 @@ export type Deal = {
   amount?: number | undefined;
   date?: string | undefined;
   source?: string | undefined;
+  niches?: string[];
 };
 
 export type InvestorAgg = {
@@ -16,13 +17,16 @@ export type InvestorAgg = {
   active: boolean;
   companies: string[];
   sources: string[];
+  matchedDeals: Deal[];
 };
 
 function median(xs: number[]): number | null {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  const mid = s[m];
+  if (mid === undefined) return null;
+  return s.length % 2 ? mid : ((s[m - 1] ?? mid) + mid) / 2;
 }
 
 /** Active = latest deal within the last 12 months of `now`. */
@@ -62,6 +66,7 @@ export function aggregateInvestors(deals: Deal[], now = new Date()): InvestorAgg
         active: isActive(latest, now),
         companies: [...new Set(e.deals.map((d) => d.company).filter(Boolean))],
         sources: [...new Set(e.deals.map((d) => d.source).filter((s): s is string => !!s))],
+        matchedDeals: e.deals,
       };
     })
     .sort((a, b) => b.deals - a.deals || b.led - a.led || Number(b.active) - Number(a.active));

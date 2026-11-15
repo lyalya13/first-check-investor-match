@@ -1,3 +1,4 @@
+import { selectedModels, selectedRegions, type BusinessModel } from "./fundraising";
 import type { Deal } from "./aggregate";
 
 export const REGIONS = ["All", "Nordics", "DACH", "UK & Ireland", "France & Benelux", "Southern Europe", "CEE", "North America", "Asia", "Other"] as const;
@@ -29,8 +30,9 @@ export function detailedRegionOf(location?: string | null): InvestorRegion {
 export function businessModels(deals: Deal[]) {
   return [...new Set(deals.flatMap((d) => d.businessModel === "both" ? ["B2B", "B2C"] : d.businessModel ? [d.businessModel] : []))];
 }
-export function filterBusinessModel<T extends { matchedDeals: Deal[] }>(rows: T[], model: "B2B" | "B2C" | "both") {
-  return model === "both" ? rows : rows.filter((row) => businessModels(row.matchedDeals).includes(model));
+export function filterBusinessModel<T extends { matchedDeals: Deal[] }>(rows: T[], model: BusinessModel | "both" | BusinessModel[]) {
+  const models = Array.isArray(model) ? model : model === "both" ? [] : [model];
+  return !models.length ? rows : rows.filter((row) => models.some((m) => businessModels(row.matchedDeals).includes(m)));
 }
 
 export function filterByRegion<T extends { region: InvestorRegion }>(rows: T[], filter: RegionFilter): T[] {
@@ -65,17 +67,18 @@ export function topNiches(deals: Deal[]): string[] {
   }
   return [...counts.values()].sort((a,b) => b.count-a.count || a.name.localeCompare(b.name)).slice(0,3).map((n) => n.name);
 }
-export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number; kind?: string }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string; businessModel?: "B2B" | "B2C" | "both" | undefined; investorType?: string | undefined }) {
+export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number; kind?: string }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string; businessModel?: string | undefined; businessModels?: BusinessModel[] | undefined; regions?: string[] | undefined; investorType?: string | undefined }) {
   const reasons: string[] = []; let score = 0;
   const overlapping = investor.matchedDeals.filter((d) => nicheOverlap(d, founder.niches).length);
   if (overlapping.length) { score += 35; reasons.push(`Backed ${overlapping.length} deal${overlapping.length === 1 ? "" : "s"} in your selected niches`); }
   if (investor.matchedDeals.some((d) => d.stage === founder.stage)) { score += 15; reasons.push(`Backed ${founder.stage} rounds`); }
   if (founder.amount > 0 && investor.matchedDeals.some((d) => d.amount !== undefined && d.amount >= founder.amount / 5 && d.amount <= founder.amount * 5)) { score += 15; reasons.push("Backed rounds within 5× of your raise"); }
-  const region = founder.region === "Europe" ? "Europe" : detailedRegionOf(founder.region);
+  const region = selectedRegions(founder).map((r) => r === "Europe" ? "Europe" : detailedRegionOf(r)).find((r) => r !== "Unknown" && (investor.region === r || (r === "Europe" && regionOf(investor.region) === "Europe"))) ?? "Unknown";
   if (region !== "Unknown" && (investor.region === region || (region === "Europe" && regionOf(investor.region) === "Europe"))) { score += 10; reasons.push(`Based in ${region}, your target region`); }
   if (investor.active) { score += 15; reasons.push("A deal within the last 12 months"); }
   if (investor.led > 0) { score += 10; reasons.push(`Led ${investor.led} matching deal${investor.led === 1 ? "" : "s"}`); }
-  if (founder.businessModel && founder.businessModel !== "both" && businessModels(investor.matchedDeals).includes(founder.businessModel)) { score += 10; reasons.push(`Backed ${founder.businessModel} companies`); }
+  const models = selectedModels(founder).filter((m) => businessModels(investor.matchedDeals).includes(m));
+  if (models.length) { score += 10; reasons.push(`Backed ${models.join(" / ")} companies — similar customers to yours`); }
   const desiredKind = founder.investorType === "Angels" ? "Angel" : founder.investorType === "VCs" ? "VC" : founder.investorType === "Corporate VCs" ? "Corporate VC" : undefined;
   if (desiredKind && investor.kind === desiredKind) { score += 10; reasons.push(`Investor type: ${desiredKind}`); }
   const level: MatchLevel = overlapping.length && score >= 70 ? "High match" : score >= 35 ? "Medium match" : "Low match";

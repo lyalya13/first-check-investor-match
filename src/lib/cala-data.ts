@@ -1,4 +1,5 @@
 import type { Deal } from "./aggregate";
+import { BUSINESS_MODELS } from "./fundraising";
 import { safeUrl } from "./matching";
 
 type Row = Record<string, any>;
@@ -51,7 +52,7 @@ export function toDeals(data: any, niche: string): Deal[] {
     const euro = typeof rawAmount === "string" ? rawAmount.match(/(?:€|EUR)\s*(\d[\d,.]*\s*(?:billion|million|thousand|bn|[bmk])?)/i) : null;
     const amount = euro ? amountValue(euro[1]) : typeof rawAmount === "string" && /\$|£|DKK|SEK|NOK|USD|GBP/i.test(rawAmount) ? undefined : amountValue(rawAmount);
     const stageRaw = text(field(o,["round_type","stage","round","series"]));
-    const stage = stageRaw && /pre[\s-]?seed/i.test(stageRaw) ? "pre-seed" : stageRaw && /^seed$/i.test(stageRaw) ? "seed" : stageRaw;
+    const stage = stageRaw && /pre[\s-]?seed/i.test(stageRaw) ? "pre-seed" : stageRaw && /^seed$/i.test(stageRaw) ? "seed" : stageRaw && /series[ -]?a/i.test(stageRaw) ? "series-a" : stageRaw && /idea|pre[ -]?funding/i.test(stageRaw) ? "idea" : stageRaw;
     const location = text(field(o,["company_location","location","headquarters"]));
     const focusNiches = names(field(o,["company_niches","sub_niches","niches","industry_niches"]));
     const founderRaw = field(o,["founders","founder_names","founder"]);
@@ -60,7 +61,7 @@ export function toDeals(data: any, niche: string): Deal[] {
       ? founderRaw.flatMap((f) => { const name = text(f?.name); return name ? [{ name, linkedin: safeUrl(text(f.linkedin_url ?? f.linkedin)) }] : []; })
       : names(founderRaw).map((name) => ({ name, linkedin: founderUrls && typeof founderUrls === "object" && !Array.isArray(founderUrls) ? safeUrl(text(founderUrls[name])) : undefined }));
     const modelRaw = text(field(o, ["business_model", "businessModel", "customer_type"]));
-    const businessModel = modelRaw && /\bb2b\b/i.test(modelRaw) && /\bb2c\b/i.test(modelRaw) || modelRaw?.toLowerCase() === "both" ? "both" as const : modelRaw && /\bb2b\b/i.test(modelRaw) ? "B2B" as const : modelRaw && /\bb2c\b/i.test(modelRaw) ? "B2C" as const : undefined;
+    const businessModel = modelRaw?.toLowerCase() === "both" || (modelRaw && /\bb2b\b/i.test(modelRaw) && /\bb2c\b/i.test(modelRaw)) ? "both" as const : BUSINESS_MODELS.find((model) => modelRaw && new RegExp(`\\b${model}\\b`, "i").test(modelRaw));
     const companyLinkedin = safeUrl(text(field(o,["company_linkedin_url","company_linkedin"])));
     if (!company || (!investors.length && !lead)) return [];
     return [{ company, investors, lead, date, datePrecision, source, amount, niches: [niche], stage, location, focusNiches, founders, companyLinkedin, businessModel }];

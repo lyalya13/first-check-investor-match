@@ -1,6 +1,6 @@
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-type SearchInput = { niches: { name: string; category: string }[]; category: string; secondaryIndustry?: string; businessModel?: string; investorType?: string; region: string; stage: string; amount: number };
+type SearchInput = { niches: { name: string; category: string }[]; category: string; secondaryIndustry?: string | undefined; businessModel?: string | undefined; investorType?: string | undefined; region: string; stage: string; amount: number };
 const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
 
 export function searchCacheKey(input: SearchInput): string {

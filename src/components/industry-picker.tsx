@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { CATEGORIES, INDUSTRIES, type Category, type NicheSelection } from "@/lib/fundraising";
 
 export function IndustryPicker({ category, secondaryIndustry, niches, onChange }: {
-  category: string; secondaryIndustry?: string; niches: { category: string; name: string }[];
+  category: string; secondaryIndustry?: string | undefined; niches: { category: string; name: string }[];
   onChange: (category: string, secondaryIndustry: string, niches: NicheSelection[]) => void;
 }) {
   const [custom, setCustom] = useState<Record<string, string>>({});

@@ -65,7 +65,7 @@ export function topNiches(deals: Deal[]): string[] {
   }
   return [...counts.values()].sort((a,b) => b.count-a.count || a.name.localeCompare(b.name)).slice(0,3).map((n) => n.name);
 }
-export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number; kind?: string }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string; businessModel?: "B2B" | "B2C" | "both"; investorType?: string }) {
+export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number; kind?: string }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string; businessModel?: "B2B" | "B2C" | "both" | undefined; investorType?: string }) {
   const reasons: string[] = []; let score = 0;
   const overlapping = investor.matchedDeals.filter((d) => nicheOverlap(d, founder.niches).length);
   if (overlapping.length) { score += 35; reasons.push(`Backed ${overlapping.length} deal${overlapping.length === 1 ? "" : "s"} in your selected niches`); }

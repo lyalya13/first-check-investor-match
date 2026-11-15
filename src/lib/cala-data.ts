@@ -93,7 +93,7 @@ export const MIN_NICHE_DEALS = 5;
 
 export function investorProfile(data: any, name: string) {
   const row = responseRows(data).map((r) => ({ ...r, ...(r["properties"] ?? r["fields"] ?? r["attributes"] ?? {}) })).find((r) => normalized(text(field(r,["name","investor","investor_name"])) ?? "") === normalized(name));
-  if (!row) return { location: undefined, linkedin: undefined, source: undefined };
+  if (!row) return { kind: undefined, location: undefined, linkedin: undefined, source: undefined };
   return { kind: text(field(row,["investor_type","type","investor_kind"])), location: text(field(row,["headquarters_location","registered_address","location","based_in"])), linkedin: safeUrl(text(field(row,["linkedin_url","linkedin"]))), source: safeUrl(text(field(row,["source","source_url"]))) };
 }
 

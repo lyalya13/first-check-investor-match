@@ -5,7 +5,7 @@ import { EXAMPLE } from "@/lib/example";
 describe("24-hour Cala cache", () => {
   const now = Date.parse("2026-11-15T03:20:00Z");
   it("normalizes niche order, duplicates, case and whitespace", () => {
-    expect(searchCacheKey({ ...EXAMPLE, region: "  NORDICS / EUROPE ", niches: [...EXAMPLE.niches].reverse().concat(EXAMPLE.niches).map((n) => ({ ...n, name: ` ${n.name.toUpperCase()} ` })) })).toBe(searchCacheKey(EXAMPLE));
+    expect(searchCacheKey({ ...EXAMPLE, region: `  ${EXAMPLE.region.toUpperCase()} `, niches: [...EXAMPLE.niches].reverse().concat(EXAMPLE.niches).map((n) => ({ ...n, name: ` ${n.name.toUpperCase()} ` })) })).toBe(searchCacheKey(EXAMPLE));
   });
   it("separates changes in niches, region, stage and amount", () => {
     for (const change of [{ niches: [] }, { region: "Germany" }, { stage: "seed" }, { amount: 50000 }]) expect(searchCacheKey({ ...EXAMPLE, ...change })).not.toBe(searchCacheKey(EXAMPLE));

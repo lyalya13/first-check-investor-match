@@ -24,7 +24,7 @@ export function readSavedItems(storage: Pick<Storage, "getItem">): SavedItems {
 export function writeSavedItems(storage: Pick<Storage, "setItem">, items: SavedItems): boolean {
   try { storage.setItem(SAVED_KEY, JSON.stringify(items)); return true; } catch { return false; }
 }
-export function searchName(input: { category: string; secondaryIndustry?: string; stage: string }) {
+export function searchName(input: { category: string; secondaryIndustry?: string | undefined; stage: string }) {
   const short = (name: string) => name.split(" & ")[0];
   return `${[input.category, input.secondaryIndustry].filter((s): s is string => !!s).map(short).join(", ")} · ${input.stage === "pre-seed" ? "Pre-Seed" : "Seed"}`;
 }

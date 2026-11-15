@@ -1,4 +1,8 @@
 # First Check improvements
+- [x] Replace niche calls with at most two broad-industry calls and optional evidence-based sharpening.
+- [x] Add detailed region, investor-type and business-model filters.
+- [x] Add browser-saved searches, investors and founders, Saved view and saved-investor CSV.
+- [x] Precompute the updated example (11 deals, 10 investors, 1.3s cached load); all 64 tests pass and saved flows verified on desktop/mobile.
 - [x] Apply premium palette, crisp borders and dark shimmering skeletons.
 - [x] Show grouped live deals immediately and enrich investors in parallel with 20-second call limits.
 - [x] Preserve caching and partial-source fallback; test and measure a real five-niche search (0.8s to rows; 23.5s including rate-limited profiles).

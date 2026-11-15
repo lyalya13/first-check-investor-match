@@ -1,20 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Star, Copy, Download, ExternalLink, Loader2, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bookmark, Trash2, Copy, Download, ExternalLink, Loader2, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, type RegionFilter } from "@/lib/matching";
+import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
 import { Skeleton } from "@/components/ui/skeleton";
 import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { progressiveMap } from "@/lib/search-performance";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
-import { guidanceTier, defaultFilter, filterInvestors, ticketFit, type InvestorFilter } from "@/lib/fundraising";
+import { guidanceTier, defaultFilter, filterInvestors, ticketFit, filterInvestorKind, INVESTOR_TYPES, type InvestorTypeFilter, type InvestorFilter } from "@/lib/fundraising";
+
+import { readSavedItems, writeSavedItems, personId, toggleSavedPerson, searchName, type SavedItems, type SavedPerson } from "@/lib/saved-items";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "", stage: "pre-seed", amount: 0, website: "" };
+const EMPTY: FounderInput = { description: "", industry: "", category: "", niches: [], region: "", stage: "pre-seed", amount: 0, website: "", secondaryIndustry: "", businessModel: "both", investorType: "All" };
 const eur = (n: number | null) => (n ? new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, notation: n >= 1e6 ? "compact" : "standard" }).format(n) : "Unknown");
 
 type Result = Awaited<ReturnType<typeof findInvestors>>;
@@ -42,50 +44,67 @@ function Index() {
   const [form, setForm] = useState<FounderInput>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [starred, setStarred] = useState<Record<string, boolean>>({});
+  const [saved, setSaved] = useState<SavedItems>({ searches: [], people: [] });
+  const [tab, setTab] = useState<"results" | "saved">("results");
+  const [saveModal, setSaveModal] = useState(false);
+  const [savedName, setSavedName] = useState("");
+  const [storageNotice, setStorageNotice] = useState("");
+  const searchRun = useRef(0);
+  const [typeFilter, setTypeFilter] = useState<InvestorTypeFilter>("All");
+  const [modelFilter, setModelFilter] = useState<"B2B" | "B2C" | "both">("both");
+  useEffect(() => { try { setSaved(readSavedItems(window.localStorage)); } catch { /* Storage may be blocked. */ } }, []);
+  const persist = (items: SavedItems) => {
+    setSaved(items);
+    try { if (!writeSavedItems(window.localStorage, items)) setStorageNotice("Saving is unavailable in this browser. Your items remain available until you close this page."); }
+    catch { setStorageNotice("Saving is unavailable in this browser. Your items remain available until you close this page."); }
+  };
+  const togglePerson = (person: SavedPerson) => persist({ ...saved, people: toggleSavedPerson(saved.people, person) });
   const [messages, setMessages] = useState<Record<string, string>>({});
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
   const [filter, setFilter] = useState<InvestorFilter>("All");
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true); setResult(null); setStarred({}); setMessages({}); setFilter(defaultFilter(form.amount)); setRegionFilter("All");
+  const runSearch = async (searchInput: FounderInput) => {
+    const run = ++searchRun.current;
+    setTab("results"); setForm(searchInput);
+    setLoading(true); setResult(null); setMessages({}); setFilter(defaultFilter(searchInput.amount)); setRegionFilter("All"); setTypeFilter(searchInput.investorType ?? "All"); setModelFilter(searchInput.businessModel ?? "both");
     try {
       const started = performance.now();
-      const input = { ...form, website: form.website || undefined };
+      const input = { ...searchInput, website: searchInput.website || undefined };
       const grouped = await find({ data: input });
+      if (run !== searchRun.current) return;
       setResult(grouped);
       if (grouped.ok && grouped.enrichmentPending) {
         await progressiveMap(grouped.investors, async (inv) => {
           try { return await enrich({ data: { founder: input, name: inv.name } }); }
           catch { return { ok: false as const }; }
         }, (update, inv) => {
+          if (run !== searchRun.current) return;
           setResult((current) => current?.ok ? { ...current,
             partial: current.partial || !update.ok || (update.ok && update.partial),
             investors: current.investors.map((row) => row.name === inv.name && update.ok ? update.investor : row),
           } : current);
         });
         await finish({ data: input }).catch(() => {});
-        setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
+        if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
       }
       console.info("[First Check timing] search", { niches: input.niches.length, elapsedMs: Math.round(performance.now() - started), cached: grouped.ok && grouped.cached });
     }
-    catch { setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
-    finally { setLoading(false); }
+    catch { if (run === searchRun.current) setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
+    finally { if (run === searchRun.current) setLoading(false); }
   };
 
   const exportCsv = () => {
-    const rows = (result?.investors ?? []).filter((i) => starred[i.name]);
+    const rows = saved.people.filter((p) => p.role === "investor");
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const csv = [["name", "type", "active", "deals", "round_size", "why", "source", "message", "match_level", "investor_region", "top_niches", "linkedin", "intro_companies"].join(","),
-      ...rows.map((i) => [i.name, i.type, i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, form), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? "", scoreMatch(i, form).level, i.region, topNiches(i.matchedDeals).join("; ") || "Unknown", linkedinLink(i.name, i.linkedin).url, introDeals(i.matchedDeals, form.niches).map((d) => d.company).join("; ")].map(esc).join(","))].join("\n");
+      ...rows.map((person) => { const i = person.investor; const input = person.input; return [i.name, i.kind ?? "Unknown", i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, input), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? "", scoreMatch(i, input).level, i.region, topNiches(i.matchedDeals).join("; ") || "Unknown", linkedinLink(i.name, i.linkedin).url, introDeals(i.matchedDeals, input.niches).map((d) => d.company).join("; ")].map(esc).join(","); })].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "first-check-shortlist.csv"; a.click();
+    a.download = "first-check-shortlist.csv"; a.click(); URL.revokeObjectURL(a.href);
   };
-  const starCount = Object.values(starred).filter(Boolean).length;
+  const starCount = saved.people.filter((p) => p.role === "investor").length;
   const showResults = loading || result;
-  const visibleInvestors = filterByRegion(filterInvestors(result?.investors ?? [], filter), regionFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
+  const visibleInvestors = filterBusinessModel(filterInvestorKind(filterByRegion(filterInvestors(result?.investors ?? [], filter).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-8 sm:px-8 sm:py-12">
@@ -95,14 +114,24 @@ function Index() {
         <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">Real pre-seed and seed deals. People who back companies like yours, and are still active today.</p>
       </header>
 
-      {!showResults && (
-        <form onSubmit={submit} className="space-y-7">
+      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="People views"><Button role="tab" aria-selected={tab === "results"} variant={tab === "results" ? "secondary" : "outline"} onClick={() => setTab("results")}>Results</Button><Button role="tab" aria-selected={tab === "saved"} variant={tab === "saved" ? "secondary" : "outline"} onClick={() => setTab("saved")}><Bookmark className="size-4" />Saved ({saved.people.length})</Button></div>
+      {storageNotice && <p role="status" className="mb-4 text-xs text-muted-foreground">{storageNotice}</p>}
+      {tab === "saved" && <section>
+        <div className="mb-6 flex items-center justify-between gap-3"><h2 className="font-semibold">Saved people</h2><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" />Export shortlist ({starCount})</Button></div>
+        {!saved.people.length && <p className="border-y py-8 text-sm text-muted-foreground">No saved people yet.</p>}
+        <ol className="divide-y-[1.5px] border-[1.5px]">{saved.people.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button></li>)}</ol>
+      </section>}
+      {tab === "results" && !showResults && (
+        <form onSubmit={(e) => { e.preventDefault(); void runSearch(form); }} className="space-y-7">
+          <div className="space-y-3"><Label>Saved searches</Label><select aria-label="Saved searches" value="" onChange={(e) => { const search = saved.searches.find((entry) => entry.id === e.target.value); if (search) void runSearch(search.input); }} className="h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Choose a saved search</option>{saved.searches.map((search) => <option key={search.id} value={search.id}>{search.name}</option>)}</select>{saved.searches.map((search) => <div key={search.id} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{search.name}</span><Button type="button" variant="ghost" size="icon" title="Delete saved search" aria-label={`Delete search ${search.name}`} onClick={() => persist({ ...saved, searches: saved.searches.filter((item) => item.id !== search.id) })}><Trash2 className="size-4" /></Button></div>)}</div>
           <Field label="What are you building? (one line)">
             <Textarea required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Scheduling app for independent physiotherapists" />
           </Field>
           <div className="grid gap-5 sm:grid-cols-2">
-            <div className="sm:col-span-2"><Field label="Industry & niches"><IndustryPicker category={form.category} niches={form.niches} onChange={(category, niches) => setForm({ ...form, category, niches, industry: niches.length ? niches.map((n) => n.name).join(", ") : category })} /></Field></div>
-            <Field label="Country or region"><Input required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="e.g. Germany" /></Field>
+            <div className="sm:col-span-2"><Field label="Industry & niches"><IndustryPicker category={form.category} secondaryIndustry={form.secondaryIndustry} niches={form.niches} onChange={(category, secondaryIndustry, niches) => setForm({ ...form, category, secondaryIndustry, niches, industry: [category, secondaryIndustry].filter(Boolean).join(", ") })} /></Field></div>
+            <Field label="Country or region"><select aria-label="Country or region" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="h-10 w-full rounded-md border-[1.5px] border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>Choose a region</option>{REGIONS.filter((r) => r !== "All").map((r) => <option key={r}>{r}</option>)}{form.region && !REGIONS.some((r) => r === form.region) && <option>{form.region}</option>}</select></Field>
+            <Field label="Investor type"><div className="flex flex-wrap gap-2">{INVESTOR_TYPES.map((type) => <Button key={type} type="button" size="sm" variant={(form.investorType ?? "All") === type ? "secondary" : "outline"} aria-pressed={form.investorType === type} onClick={() => setForm({ ...form, investorType: type })}>{type}</Button>)}</div></Field>
+            <Field label="Business model"><div className="flex flex-wrap gap-2">{(["B2B", "B2C", "both"] as const).map((model) => <Button key={model} type="button" size="sm" variant={(form.businessModel ?? "both") === model ? "secondary" : "outline"} aria-pressed={form.businessModel === model} onClick={() => setForm({ ...form, businessModel: model })}>{model === "both" ? "Both" : model}</Button>)}</div></Field>
             <Field label="Stage">
               <div className="grid grid-cols-2 gap-2">
                 {(["pre-seed", "seed"] as const).map((s) => (
@@ -121,6 +150,7 @@ function Index() {
               <li>Investors who led a round are the ones to talk to first, others usually follow a lead.</li>
             </ol>
           </details>
+          <Button type="button" variant="outline" disabled={!form.description.trim() || !form.category || !form.region || !form.amount} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button>
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setForm(EXAMPLE)}><Sparkles className="size-4" /> Try with an example</Button>
             <Button type="submit" size="lg">Find investors</Button>
@@ -128,10 +158,10 @@ function Index() {
         </form>
       )}
 
-      {showResults && (
+      {tab === "results" && showResults && (
         <section>
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <Button variant="ghost" onClick={() => setResult(null)} disabled={loading}><ArrowLeft className="size-4" /> Edit details</Button>
+            <Button variant="ghost" onClick={() => { searchRun.current++; setLoading(false); setResult(null); }}><ArrowLeft className="size-4" /> Edit details</Button>
             <Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button>
           </div>
           {loading && !result && <LoadingState />}
@@ -141,9 +171,11 @@ function Index() {
           {result?.ok && result.investors.length === 0 && (
             <div className="border-y py-8 text-muted-foreground">No matching rounds found. Try a broader industry or region.</div>
           )}
-          {result?.ok && result.investors.length > 0 && (
+          {result?.ok && (
             <>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "secondary" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{INVESTOR_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter === type ? "secondary" : "outline"} aria-pressed={typeFilter === type} onClick={() => setTypeFilter(type)}>{type}</Button>)}</div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{(["B2B", "B2C", "both"] as const).map((model) => <Button key={model} size="sm" variant={modelFilter === model ? "secondary" : "outline"} aria-pressed={modelFilter === model} onClick={() => setModelFilter(model)}>{model === "both" ? "Both" : model}</Button>)}</div>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "secondary" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
               {result.cached && <p className="mb-3 text-xs text-muted-foreground">Saved Cala results · {result.fetchedAt.slice(0, 10)}{result.stale ? " · Last available results" : ""}</p>}
@@ -153,7 +185,7 @@ function Index() {
               <ol className="divide-y-[1.5px] border-[1.5px]">
                 {visibleInvestors.map((inv) => (
                   <InvestorCard key={inv.name} inv={inv} founder={form} query={result.queries.join("\n\n")}
-                    starred={!!starred[inv.name]} onStar={() => setStarred((s) => ({ ...s, [inv.name]: !s[inv.name] }))}
+                    starred={saved.people.some((p) => p.id === personId("investor", inv.name))} onStar={() => togglePerson({ id: personId("investor", inv.name), role: "investor", investor: inv, input: form, query: result.queries.join("\n\n") })} savedPeople={saved.people} onSavePerson={togglePerson}
                     message={messages[inv.name]} onMessage={(m) => setMessages((s) => ({ ...s, [inv.name]: m }))} />
                 ))}
               </ol>
@@ -161,6 +193,7 @@ function Index() {
           )}
         </section>
       )}
+      <Dialog open={saveModal} onOpenChange={setSaveModal}><DialogContent><DialogTitle>Save search</DialogTitle><DialogDescription>{form.industry} · {form.stage}</DialogDescription><form onSubmit={(e) => { e.preventDefault(); if (!savedName.trim()) return; persist({ ...saved, searches: [...saved.searches, { id: crypto.randomUUID(), name: savedName.trim(), input: { ...form, niches: form.niches.map((n) => ({ ...n })) } }] }); setSaveModal(false); }} className="space-y-4"><Input aria-label="Search name" autoFocus required maxLength={80} value={savedName} onChange={(e) => setSavedName(e.target.value)} /><Button type="submit"><Bookmark className="size-4" />Save search</Button></form></DialogContent></Dialog>
     </main>
   );
 }
@@ -202,7 +235,8 @@ function SourceLink({ url, label = "source" }: { url?: string | undefined; label
   return <a href={verified} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
 }
 
-function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage }: {
+function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage, savedPeople, onSavePerson }: {
+  savedPeople: SavedPerson[]; onSavePerson: (person: SavedPerson) => void;
   inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string | undefined; onMessage: (m: string) => void;
 }) {
   const draft = useServerFn(draftMessage);
@@ -231,7 +265,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
 
   return (
     <li className="bg-card py-2">
-      <Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
+      <div className="flex items-center"><Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{inv.name}</span><Badge variant={match.level === "High match" ? "high" : match.level === "Medium match" ? "medium" : "low"}>{match.level}</Badge>{inv.active && <Badge variant="secondary">Active</Badge>}</span>
@@ -239,12 +273,13 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
         </span>
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>
+      <Button variant="ghost" size="icon" className="mr-2 shrink-0" title={starred ? "Remove saved investor" : "Save investor"} aria-label={starred ? `Remove saved ${inv.name}` : `Save ${inv.name}`} onClick={onStar}><Bookmark className={starred ? "fill-star text-star" : ""} /></Button></div>
       {expanded && <div className="px-2 pb-6 sm:pl-18">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="capitalize">{inv.type}</Badge>
+          <Badge variant="outline">{inv.kind ?? "Unknown"}</Badge>
           {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</Badge>}
           {fit && <Badge variant="outline">{fit === "bigger" ? "Usually backs bigger rounds" : "Similar round size"}</Badge>}
-          <Button variant="ghost" size="icon" title={starred ? "Remove from shortlist" : "Add to shortlist"} aria-label={starred ? "Remove from shortlist" : "Add to shortlist"} onClick={onStar}><Star className={starred ? "fill-star text-star" : ""} /></Button>
+
         </div>
       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
         <div><dt className="text-muted-foreground">Matching deals</dt><dd className="font-medium">Led {inv.led} of {inv.deals}<SourceLink url={dealSrc} /></dd></div>
@@ -254,6 +289,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
         <p className="mt-4 text-sm"><span className="text-muted-foreground">Portfolio: </span>{inv.companies.slice(0, 3).join(", ")}<SourceLink url={dealSrc} /></p>
       )}
       <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt className="text-muted-foreground">Business model</dt><dd>{businessModels(inv.matchedDeals).join(" / ") || "Unknown"}</dd></div>
         <div><dt className="text-muted-foreground">Investor location</dt><dd>{inv.location || "Unknown"}<SourceLink url={inv.profileSource} /></dd></div>
         <div><dt className="text-muted-foreground">Invests mostly in</dt><dd>{niches.join(" / ") || "Unknown"}</dd></div>
       </dl>
@@ -263,7 +299,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       <ul className="mt-3 space-y-3 text-xs text-muted-foreground">{recentDeals(inv.matchedDeals).map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span> · {d.stage || "Unknown"} · {d.date ? d.datePrecision === "month" ? d.date.slice(0,7) : d.datePrecision === "year" ? d.date.slice(0,4) : d.date : "Unknown"}<SourceLink url={d.source} /><span className="mt-1 block">{d.focusNiches?.join(" / ") || "Unknown"} · {d.location || "Unknown"}</span><span className="mt-1 block">Found through: {d.niches?.join(" / ") || "Unknown"}</span></li>)}</ul>
       <h3 className="mt-6 text-xs font-semibold text-muted-foreground">Get a warm intro</h3>
       <p className="mt-2 text-xs text-muted-foreground">Founders they backed often give the warmest intros.</p>
-      <ul className="mt-3 space-y-4">{introDeals(inv.matchedDeals, founder.niches).map((d) => <li key={d.company} className="border-b pb-4 text-sm"><p className="font-medium">{d.company}<SourceLink url={d.source} /></p>{(d.founders?.length ? d.founders : [{ name: "Unknown" }]).map((person) => <div key={person.name} className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{person.name}</span><Button asChild variant="outline" size="sm"><a href={linkedinLink(person.name === "Unknown" ? d.company : person.name, person.linkedin).url} target="_blank" rel="noreferrer">Find on LinkedIn<ExternalLink className="size-3" /></a></Button><Button size="sm" variant="outline" onClick={() => { setDraftText(introMessage(founder.description, inv.name, d.company, person.name === "Unknown" ? undefined : person.name)); setModalTitle(`Ask for intro · ${person.name === "Unknown" ? d.company : person.name}`); setCopied(false); setModal(true); }}>Ask for intro</Button></div>)}</li>)}</ul>
+      <ul className="mt-3 space-y-4">{introDeals(inv.matchedDeals, founder.niches).map((d) => <li key={d.company} className="border-b pb-4 text-sm"><p className="font-medium">{d.company}<SourceLink url={d.source} /></p>{(d.founders?.length ? d.founders : [{ name: "Unknown" }]).map((person) => <div key={person.name} className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{person.name}</span><Button asChild variant="outline" size="sm"><a href={linkedinLink(person.name === "Unknown" ? d.company : person.name, person.linkedin).url} target="_blank" rel="noreferrer">Find on LinkedIn<ExternalLink className="size-3" /></a></Button><Button size="sm" variant="outline" onClick={() => { setDraftText(introMessage(founder.description, inv.name, d.company, person.name === "Unknown" ? undefined : person.name)); setModalTitle(`Ask for intro · ${person.name === "Unknown" ? d.company : person.name}`); setCopied(false); setModal(true); }}>Ask for intro</Button>{person.name !== "Unknown" && <Button size="sm" variant="outline" aria-label={`Save founder ${person.name}`} aria-pressed={savedPeople.some((p) => p.id === personId("founder", person.name, d.company))} onClick={() => onSavePerson({ id: personId("founder", person.name, d.company), role: "founder", name: person.name, company: d.company, ...(person.linkedin ? { linkedin: person.linkedin } : {}), ...(d.source ? { source: d.source } : {}), ...(d.location ? { location: d.location } : {}), investor: inv.name })}><Bookmark className={savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "size-3 fill-star text-star" : "size-3"} />{savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "Saved" : "Save"}</Button>}</div>)}</li>)}</ul>
       {inv.summary && (
         <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">{inv.summary}
           {inv.summarySources.slice(0, 3).map((s, i) => <SourceLink key={s.url} url={s.url} label={`[${i + 1}]`} />)}

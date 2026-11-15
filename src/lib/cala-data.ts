@@ -59,9 +59,11 @@ export function toDeals(data: any, niche: string): Deal[] {
     const founders = Array.isArray(founderRaw) && founderRaw.some((f) => f && typeof f === "object")
       ? founderRaw.flatMap((f) => { const name = text(f?.name); return name ? [{ name, linkedin: safeUrl(text(f.linkedin_url ?? f.linkedin)) }] : []; })
       : names(founderRaw).map((name) => ({ name, linkedin: founderUrls && typeof founderUrls === "object" && !Array.isArray(founderUrls) ? safeUrl(text(founderUrls[name])) : undefined }));
+    const modelRaw = text(field(o, ["business_model", "businessModel", "customer_type"]));
+    const businessModel = modelRaw && /\bb2b\b/i.test(modelRaw) && /\bb2c\b/i.test(modelRaw) || modelRaw?.toLowerCase() === "both" ? "both" as const : modelRaw && /\bb2b\b/i.test(modelRaw) ? "B2B" as const : modelRaw && /\bb2c\b/i.test(modelRaw) ? "B2C" as const : undefined;
     const companyLinkedin = safeUrl(text(field(o,["company_linkedin_url","company_linkedin"])));
     if (!company || (!investors.length && !lead)) return [];
-    return [{ company, investors, lead, date, datePrecision, source, amount, niches: [niche], stage, location, focusNiches, founders, companyLinkedin }];
+    return [{ company, investors, lead, date, datePrecision, source, amount, niches: [niche], stage, location, focusNiches, founders, companyLinkedin, businessModel }];
   });
 }
 export function mergeDeals(deals: Deal[]): Deal[] {
@@ -78,6 +80,7 @@ export function mergeDeals(deals: Deal[]): Deal[] {
       source: existing.source ?? deal.source,
       niches: [...new Set([...(existing.niches ?? []), ...(deal.niches ?? [])])],
       focusNiches: [...new Set([...(existing.focusNiches ?? []), ...(deal.focusNiches ?? [])])],
+      businessModel: existing.businessModel ?? deal.businessModel,
       stage: existing.stage ?? deal.stage,
       location: existing.location ?? deal.location,
       founders: [...new Map([...(existing.founders ?? []), ...(deal.founders ?? [])].map((f) => [f.name.toLowerCase(), f])).values()],
@@ -89,9 +92,9 @@ export function mergeDeals(deals: Deal[]): Deal[] {
 export const MIN_NICHE_DEALS = 5;
 
 export function investorProfile(data: any, name: string) {
-  const row = responseRows(data).find((r) => normalized(text(field(r,["name","investor","investor_name"])) ?? "") === normalized(name));
-  if (!row) return { location: undefined, linkedin: undefined, source: undefined };
-  return { location: text(field(row,["headquarters_location","registered_address","location","based_in"])), linkedin: safeUrl(text(field(row,["linkedin_url","linkedin"]))), source: safeUrl(text(field(row,["source","source_url"]))) };
+  const row = responseRows(data).map((r) => ({ ...r, ...(r["properties"] ?? r["fields"] ?? r["attributes"] ?? {}) })).find((r) => normalized(text(field(r,["name","investor","investor_name"])) ?? "") === normalized(name));
+  if (!row) return { kind: undefined, location: undefined, linkedin: undefined, source: undefined };
+  return { kind: text(field(row,["investor_type","type","investor_kind"])), location: text(field(row,["headquarters_location","registered_address","location","based_in"])), linkedin: safeUrl(text(field(row,["linkedin_url","linkedin"]))), source: safeUrl(text(field(row,["source","source_url"]))) };
 }
 
 export function investorType(name: string, profile: string): "angel" | "fund" {

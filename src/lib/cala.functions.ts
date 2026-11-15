@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { aggregateInvestors, isActive, type Deal } from "./aggregate";
-import { CATEGORIES } from "./fundraising";
-import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS, investorType, investorProfile } from "./cala-data";
-import { regionOf, type InvestorRegion } from "./matching";
+import { CATEGORIES, dealSearchIndustries, verifiedInvestorKind, type InvestorKind } from "./fundraising";
+import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from "./cala-data";
+import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
 import { CALA_TIMEOUT_MS, parallelMap } from "./search-performance";
@@ -14,6 +14,9 @@ const founderSchema = z.object({
   description: z.string().min(1).max(500),
   industry: z.string().min(1).max(1000),
   category: z.string().refine((s) => s in CATEGORIES),
+  secondaryIndustry: z.string().refine((s) => !s || s in CATEGORIES).optional(),
+  businessModel: z.enum(["B2B", "B2C", "both"]).optional(),
+  investorType: z.enum(["All", "Angels", "VCs", "Corporate VCs"]).optional(),
   niches: z.array(z.object({ category: z.string().refine((s) => s in CATEGORIES), name: z.string().trim().min(1).max(120) })).max(20),
   region: z.string().min(1).max(120),
   stage: z.enum(["pre-seed", "seed"]),
@@ -49,6 +52,7 @@ function answerOf(data: any): string {
 
 export type InvestorResult = ReturnType<typeof aggregateInvestors>[number] & {
   type: "angel" | "fund";
+  kind?: InvestorKind;
   summary: string;
   summarySources: { title: string; url: string }[];
   summaryQuery: string;
@@ -75,7 +79,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       let partial = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
-        const q = `Find pre-seed or seed funding rounds announced since January 1, 2024 for ${niche} startups in ${data.region}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches, prefer exact labels from: ${data.niches.map((n) => n.name).join(", ")}; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url. Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
+        const q = `Find pre-seed or seed funding rounds announced since January 1, 2024 for ${niche} startups in ${data.region}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url, business_model (B2B, B2C, both, or null, verified company customer model). Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
         queries.push(q);
         try {
           const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
@@ -92,19 +96,14 @@ export const findInvestors = createServerFn({ method: "POST" })
           return [];
         }
       };
-      const niches = [...new Set(data.niches.map((n) => n.name))];
-      deals = mergeDeals((await parallelMap(niches, tryQuery)).flat());
-      if (niches.length && !successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
-      const broadened = !niches.length || deals.length < MIN_NICHE_DEALS;
-      if (broadened) {
-        const categories = [...new Set([data.category, ...data.niches.map((n) => n.category)])];
-        deals = mergeDeals([...deals, ...(await parallelMap(categories, tryQuery)).flat()]);
-      }
+      const industries = dealSearchIndustries(data);
+      deals = mergeDeals((await parallelMap(industries, tryQuery, 2)).flat());
+      const broadened = false;
       if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
 
       const investors: InvestorResult[] = aggregateInvestors(deals).slice(0, 10).map((inv) => ({
-        ...inv, type: investorType(inv.name, ""), summary: "", summarySources: [],
+        ...inv, type: investorType(inv.name, ""), kind: "Unknown", summary: "", summarySources: [],
         summaryQuery: `${inv.name} recent investments and investment focus`, region: "Unknown",
       }));
       if (partial && cached) throw new Error("PARTIAL_SOURCES");
@@ -135,15 +134,15 @@ export const enrichInvestor = createServerFn({ method: "POST" })
     }
     let partial = false;
     const [profile, summary] = await Promise.all([
-      cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: `Find the investor named exactly "${inv.name}". Return name, headquarters_location (where this investor is based, NOT portfolio locations), linkedin_url, source. Only verified Cala data; null for missing fields. Do not include emails. Limit 1.` }) })
-        .then((raw) => investorProfile(raw, inv.name)).catch(() => { partial = true; return { location: undefined, linkedin: undefined, source: undefined }; }),
+      cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: `Find the investor named exactly "${inv.name}". Return name, investor_type (Angel, VC, Corporate VC, or null; verified classification only), headquarters_location (where this investor is based, NOT portfolio locations), linkedin_url, source. Only verified Cala data; null for missing fields. Do not include emails. Limit 1.` }) })
+        .then((raw) => investorProfile(raw, inv.name)).catch(() => { partial = true; return { kind: undefined, location: undefined, linkedin: undefined, source: undefined }; }),
       cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: inv.summaryQuery }) })
         .then((raw) => ({ text: answerOf(raw), sources: sourcesOf(raw) })).catch(() => { partial = true; return { text: "", sources: [] }; }),
     ]);
     const previous = saved?.result.investors[0] ?? inv;
     const text = summary.text || previous.summary;
     const location = profile.location || previous.location;
-    const investor: InvestorResult = { ...inv, type: investorType(inv.name, text), summary: text, summarySources: summary.sources.length ? summary.sources : previous.summarySources, location, region: regionOf(location), linkedin: profile.linkedin || previous.linkedin, profileSource: profile.source || previous.profileSource };
+    const investor: InvestorResult = { ...inv, type: investorType(inv.name, text), kind: verifiedInvestorKind(profile.kind), summary: text, summarySources: summary.sources.length ? summary.sources : previous.summarySources, location, region: detailedRegionOf(location), linkedin: profile.linkedin || previous.linkedin, profileSource: profile.source || previous.profileSource };
     await storeSearchCache(profileKey, { ...cached.result, investors: [investor], enrichmentPending: false, partial }, false).catch(() => {});
     return { ok: true as const, investor, partial };
   });

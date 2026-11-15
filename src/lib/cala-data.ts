@@ -60,7 +60,7 @@ export function toDeals(data: any, niche: string): Deal[] {
       ? founderRaw.flatMap((f) => { const name = text(f?.name); return name ? [{ name, linkedin: safeUrl(text(f.linkedin_url ?? f.linkedin)) }] : []; })
       : names(founderRaw).map((name) => ({ name, linkedin: founderUrls && typeof founderUrls === "object" && !Array.isArray(founderUrls) ? safeUrl(text(founderUrls[name])) : undefined }));
     const modelRaw = text(field(o, ["business_model", "businessModel", "customer_type"]));
-    const businessModel = modelRaw && /b2b/i.test(modelRaw) && /b2c/i.test(modelRaw) || modelRaw?.toLowerCase() === "both" ? "both" as const : modelRaw && /^b2b$/i.test(modelRaw) ? "B2B" as const : modelRaw && /^b2c$/i.test(modelRaw) ? "B2C" as const : undefined;
+    const businessModel = modelRaw && /\bb2b\b/i.test(modelRaw) && /\bb2c\b/i.test(modelRaw) || modelRaw?.toLowerCase() === "both" ? "both" as const : modelRaw && /\bb2b\b/i.test(modelRaw) ? "B2B" as const : modelRaw && /\bb2c\b/i.test(modelRaw) ? "B2C" as const : undefined;
     const companyLinkedin = safeUrl(text(field(o,["company_linkedin_url","company_linkedin"])));
     if (!company || (!investors.length && !lead)) return [];
     return [{ company, investors, lead, date, datePrecision, source, amount, niches: [niche], stage, location, focusNiches, founders, companyLinkedin, businessModel }];

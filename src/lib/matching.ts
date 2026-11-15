@@ -1,8 +1,8 @@
 import type { Deal } from "./aggregate";
 
-export const REGIONS = ["All", "Europe", "North America", "Asia", "Other"] as const;
-export type InvestorRegion = Exclude<typeof REGIONS[number], "All"> | "Unknown";
-export type RegionFilter = typeof REGIONS[number];
+export const REGIONS = ["All", "Nordics", "DACH", "UK & Ireland", "France & Benelux", "Southern Europe", "CEE", "North America", "Asia", "Other"] as const;
+export type InvestorRegion = Exclude<typeof REGIONS[number], "All"> | "Europe" | "Unknown";
+export type RegionFilter = typeof REGIONS[number] | "Europe";
 export type MatchLevel = "High match" | "Medium match" | "Low match";
 const normalize = (s: string) => s.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
@@ -14,6 +14,23 @@ export function regionOf(location?: string | null): InvestorRegion {
   if (/asia|singapore|china|beijing|shanghai|hong kong|india|bengaluru|bangalore|mumbai|japan|tokyo|korea|seoul|indonesia|vietnam|thailand|malaysia|taiwan|israel|tel aviv|dubai|united arab emirates|saudi|philippines|pakistan|bangladesh/i.test(location)) return "Asia";
   if (/africa|australia|sydney|melbourne|new zealand|brazil|argentina|chile|colombia|south america|oceania|kenya|nigeria|south africa/i.test(location)) return "Other";
   return "Unknown";
+}
+
+export function detailedRegionOf(location?: string | null): InvestorRegion {
+  if (!location) return "Unknown";
+  if (/nordics?|sweden|stockholm|finland|helsinki|denmark|copenhagen|norway|oslo|iceland|reykjavik/i.test(location)) return "Nordics";
+  if (/\bdach\b|germany|berlin|munich|hamburg|switzerland|zurich|austria|vienna/i.test(location)) return "DACH";
+  if (/united kingdom|\buk\b|london|bristol|ireland|dublin|edinburgh|manchester/i.test(location)) return "UK & Ireland";
+  if (/france|paris|benelux|netherlands|amsterdam|belgium|brussels|luxembourg/i.test(location)) return "France & Benelux";
+  if (/southern europe|spain|madrid|barcelona|italy|milan|rome|portugal|lisbon|greece|athens|malta|cyprus/i.test(location)) return "Southern Europe";
+  if (/\bcee\b|poland|warsaw|estonia|tallinn|lithuania|latvia|czech|prague|romania|ukraine|hungary|budapest|bulgaria|croatia|slovenia|slovakia|serbia/i.test(location)) return "CEE";
+  return regionOf(location);
+}
+export function businessModels(deals: Deal[]) {
+  return [...new Set(deals.flatMap((d) => d.businessModel === "both" ? ["B2B", "B2C"] : d.businessModel ? [d.businessModel] : []))];
+}
+export function filterBusinessModel<T extends { matchedDeals: Deal[] }>(rows: T[], model: "B2B" | "B2C" | "both") {
+  return model === "both" ? rows : rows.filter((row) => businessModels(row.matchedDeals).includes(model));
 }
 
 export function filterByRegion<T extends { region: InvestorRegion }>(rows: T[], filter: RegionFilter): T[] {
@@ -48,16 +65,19 @@ export function topNiches(deals: Deal[]): string[] {
   }
   return [...counts.values()].sort((a,b) => b.count-a.count || a.name.localeCompare(b.name)).slice(0,3).map((n) => n.name);
 }
-export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string }) {
+export function scoreMatch(investor: { matchedDeals: Deal[]; region: InvestorRegion; active: boolean; led: number; kind?: string }, founder: { niches: { name: string }[]; stage: string; amount: number; region: string; businessModel?: "B2B" | "B2C" | "both"; investorType?: string }) {
   const reasons: string[] = []; let score = 0;
   const overlapping = investor.matchedDeals.filter((d) => nicheOverlap(d, founder.niches).length);
   if (overlapping.length) { score += 35; reasons.push(`Backed ${overlapping.length} deal${overlapping.length === 1 ? "" : "s"} in your selected niches`); }
   if (investor.matchedDeals.some((d) => d.stage === founder.stage)) { score += 15; reasons.push(`Backed ${founder.stage} rounds`); }
   if (founder.amount > 0 && investor.matchedDeals.some((d) => d.amount !== undefined && d.amount >= founder.amount / 5 && d.amount <= founder.amount * 5)) { score += 15; reasons.push("Backed rounds within 5× of your raise"); }
-  const region = regionOf(founder.region);
-  if (region !== "Unknown" && investor.region === region) { score += 10; reasons.push(`Based in ${region}, your target region`); }
+  const region = founder.region === "Europe" ? "Europe" : detailedRegionOf(founder.region);
+  if (region !== "Unknown" && (investor.region === region || (region === "Europe" && regionOf(investor.region) === "Europe"))) { score += 10; reasons.push(`Based in ${region}, your target region`); }
   if (investor.active) { score += 15; reasons.push("A deal within the last 12 months"); }
   if (investor.led > 0) { score += 10; reasons.push(`Led ${investor.led} matching deal${investor.led === 1 ? "" : "s"}`); }
+  if (founder.businessModel && founder.businessModel !== "both" && businessModels(investor.matchedDeals).includes(founder.businessModel)) { score += 10; reasons.push(`Backed ${founder.businessModel} companies`); }
+  const desiredKind = founder.investorType === "Angels" ? "Angel" : founder.investorType === "VCs" ? "VC" : founder.investorType === "Corporate VCs" ? "Corporate VC" : undefined;
+  if (desiredKind && investor.kind === desiredKind) { score += 10; reasons.push(`Investor type: ${desiredKind}`); }
   const level: MatchLevel = overlapping.length && score >= 70 ? "High match" : score >= 35 ? "Medium match" : "Low match";
   return { level, score, reasons };
 }

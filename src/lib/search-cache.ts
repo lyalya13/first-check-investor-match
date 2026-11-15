@@ -1,13 +1,14 @@
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-type SearchInput = { niches: { name: string; category: string }[]; category: string; region: string; stage: string; amount: number };
+type SearchInput = { niches: { name: string; category: string }[]; category: string; secondaryIndustry?: string; businessModel?: string; investorType?: string; region: string; stage: string; amount: number };
 const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
 
 export function searchCacheKey(input: SearchInput): string {
   return JSON.stringify({
-    version: 2,
+    version: 3,
     niches: [...new Set(input.niches.map((n) => normalize(n.name)))].sort(),
-    categories: [...new Set([input.category, ...input.niches.map((n) => n.category)].map(normalize))].sort(),
+    categories: [...new Set([input.category, ...(input.secondaryIndustry ? [input.secondaryIndustry] : [])].map(normalize))].sort(),
+    businessModel: input.businessModel ?? "both", investorType: input.investorType ?? "All",
     region: normalize(input.region), stage: normalize(input.stage), amount: input.amount,
   });
 }

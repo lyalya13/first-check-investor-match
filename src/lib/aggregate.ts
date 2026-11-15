@@ -1,4 +1,5 @@
 export type Deal = {
+  businessModel?: "B2B" | "B2C" | "both";
   company: string;
   investors: string[];
   lead?: string | undefined;

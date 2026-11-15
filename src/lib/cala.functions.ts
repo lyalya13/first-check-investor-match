@@ -6,8 +6,8 @@ import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from
 import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
-import { CALA_TIMEOUT_MS, CALA_SEARCH_CONCURRENCY, parallelMap, retryCala, consolidateProfiles } from "./search-performance";
-import { dealQueryTarget } from "./deal-query";
+import { CALA_TIMEOUT_MS, retryCala, consolidateProfiles } from "./search-performance";
+import { combinedDealQueries } from "./deal-query";
 import { calaSearchError } from "./cala-errors";
 
 const BASE = "https://api.cala.ai/v1";
@@ -69,6 +69,14 @@ export type InvestorResult = ReturnType<typeof aggregateInvestors>[number] & {
   profileSource?: string | undefined;
 };
 
+function toInvestors(deals: Deal[], previous: InvestorResult[] = []): InvestorResult[] {
+  return aggregateInvestors(deals).slice(0, 10).map((inv) => {
+    const old = previous.find((p) => p.name === inv.name);
+    return { ...inv, type: old?.type ?? investorType(inv.name, ""), kind: old?.kind ?? classifyInvestor(inv.name), summary: old?.summary ?? "", summarySources: old?.summarySources ?? [],
+      summaryQuery: `${inv.name} recent investments and investment focus`, region: old?.region ?? "Unknown", location: old?.location, linkedin: old?.linkedin, profileSource: old?.profileSource };
+  });
+}
+
 export const findInvestors = createServerFn({ method: "POST" })
   .inputValidator((d) => founderSchema.parse(d))
   .handler(async ({ data }) => {
@@ -95,36 +103,33 @@ export const findInvestors = createServerFn({ method: "POST" })
       let timedOut = false;
       let partial = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
-      const tryQuery = async (niche: string) => {
-        const q = `Find ${dealQueryTarget(data, niche)}. Return up to 30 real rounds with named investors, one row per company and date. Fields: company, investors, lead_investor, amount (total round size with currency), round_type, date (preserve known precision), source (article URL), company_location, company_niches (verified specific areas), founders (name, linkedin_url), company_linkedin_url, business_model (verified customer model). Unknown fields null. Never invent facts.`;
-        queries.push(q);
-        try {
-          const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
-          successfulQueries++;
-          const parsed = toDeals(raw, niche);
-          const rows = responseRows(raw);
-          diagnostics.push({ niche, fields: [...new Set(rows.flatMap((r) => Object.keys(r['properties'] ?? r['fields'] ?? r)))], rows: rows.length, parsed: parsed.length });
-          return parsed;
-        } catch (e) {
-          console.error(`[cala] Query failed for ${niche}`, (e as Error).message);
-          if ((e as Error).message === "Cala 429") rateLimited = true;
-          if (/timeout|aborted/i.test((e as Error).message)) timedOut = true;
-          if ((e as Error).message === "MISSING_KEY") throw e;
-          partial = true;
-          return [];
-        }
-      };
       const industries = dealSearchIndustries(data);
-      deals = mergeDeals((await parallelMap(industries, tryQuery, CALA_SEARCH_CONCURRENCY)).flat());
+      const label = industries.join(" + ");
+      const q = combinedDealQueries(data).structured;
+      queries.push(q);
+      try {
+        const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
+        successfulQueries++;
+        const parsed = toDeals(raw, label);
+        const rows = responseRows(raw);
+        diagnostics.push({ niche: label, fields: [...new Set(rows.flatMap((r) => Object.keys(r['properties'] ?? r['fields'] ?? r)))], rows: rows.length, parsed: parsed.length });
+        deals = mergeDeals(parsed);
+      } catch (e) {
+        console.error("[cala] Structured query failed", (e as Error).message);
+        if ((e as Error).message === "MISSING_KEY") throw e;
+        // Prefer an older cached result over an empty one when the provider fails.
+        if (cached) throw new Error(/timeout|aborted/i.test((e as Error).message) ? "CALA_TIMEOUT" : (e as Error).message === "Cala 429" ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
+        if ((e as Error).message === "Cala 429") rateLimited = true;
+        if (/timeout|aborted/i.test((e as Error).message)) timedOut = true;
+        partial = true;
+      }
       const broadened = false;
-      if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : timedOut ? "CALA_TIMEOUT" : "CALA_UNAVAILABLE");
+      // The fallback query can still deliver deals, so a failed structured query is not fatal yet.
+      void rateLimited; void timedOut; void successfulQueries;
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
 
-      const investors: InvestorResult[] = aggregateInvestors(deals).slice(0, 10).map((inv) => ({
-        ...inv, type: investorType(inv.name, ""), kind: classifyInvestor(inv.name), summary: "", summarySources: [],
-        summaryQuery: `${inv.name} recent investments and investment focus`, region: "Unknown",
-      }));
-      return { ok: true as const, investors, deals, queries, dealCount: deals.length, diagnostics, broadened, partial, enrichmentPending: investors.length > 0 };
+      const investors: InvestorResult[] = toInvestors(deals);
+      return { ok: true as const, investors, deals, queries, dealCount: deals.length, diagnostics, broadened, partial, enrichmentPending: false, fallbackPending: true };
       } });
       console.log("[cala timing] grouped search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - started), cached: resolved.cached, deals: resolved.result.dealCount }));
       return { ...resolved.result, investors: resolved.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })), cached: resolved.cached, stale: resolved.stale, fetchedAt: resolved.fetchedAt };
@@ -133,6 +138,30 @@ export const findInvestors = createServerFn({ method: "POST" })
       const msg = (e as Error).message;
       return { ok: false as const, error: calaSearchError(msg), investors: [], queries: [], dealCount: 0 };
     }
+  });
+
+/** Runs the natural-language fallback once and merges its deals into the server-cached search. */
+export const extendInvestorSearch = createServerFn({ method: "POST" })
+  .inputValidator((d) => founderSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { readSearchCache, storeSearchCache } = await import("./cala-cache.server");
+    const key = searchCacheKey(data);
+    const cached = await readSearchCache(key).catch(() => null);
+    if (cached && !cached.result.fallbackPending) return { ...cached.result, ok: true as const, investors: cached.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })) };
+    const q = combinedDealQueries(data).fallback;
+    let found: Deal[] = [];
+    let failed = "";
+    try { found = toDeals(await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) }), dealSearchIndustries(data).join(" + ")); }
+    catch (e) { failed = (e as Error).message; console.error("[cala] Fallback query failed", failed); }
+    const base = cached?.result;
+    const deals = mergeDeals([...(base?.deals ?? []), ...found]);
+    if (!deals.length) {
+      const error = failed === "Cala 429" ? "CALA_RATE_LIMIT" : /timeout|aborted/i.test(failed) ? "CALA_TIMEOUT" : failed === "MISSING_KEY" ? failed : "CALA_UNAVAILABLE";
+      return { ok: false as const, error: calaSearchError(error), investors: [], queries: [], dealCount: 0 };
+    }
+    const result = { ok: true as const, investors: toInvestors(deals, base?.investors), deals, queries: [...(base?.queries ?? []), q], dealCount: deals.length, diagnostics: base?.diagnostics ?? [], broadened: false, partial: (base?.partial ?? false) && !found.length || !!failed, enrichmentPending: false, fallbackPending: false };
+    await storeSearchCache(key, result, false).catch(() => {});
+    return { ...result, investors: result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })) };
   });
 
 /** Enrich only server-cached provider rows; the caller cannot submit investor facts. */

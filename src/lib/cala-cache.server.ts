@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import type { InvestorResult } from "./cala.functions";
 import { isNamedInvestor } from "./cala-data";
 
-export type SearchResult = { ok: true; investors: InvestorResult[]; deals?: import("./aggregate").Deal[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean };
+export type SearchResult = { ok: true; investors: InvestorResult[]; deals?: import("./aggregate").Deal[]; queries: string[]; dealCount: number; diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[]; broadened: boolean; partial?: boolean; enrichmentPending?: boolean; fallbackPending?: boolean };
 
 export async function readSearchCache(key: string) {
   const url = process.env["SUPABASE_URL"];

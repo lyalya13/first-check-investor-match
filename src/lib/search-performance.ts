@@ -1,4 +1,4 @@
-export const CALA_TIMEOUT_MS = 20_000;
+export const CALA_TIMEOUT_MS = 25_000;
 export const CALA_CONCURRENCY = 6;
 export const CALA_SEARCH_CONCURRENCY = 2;
 

@@ -31,7 +31,7 @@ use the editor.
 
 - Keep category selections and fundraising thresholds in a client-safe shared module so the UI and tests use identical rules.
 - Parse Cala responses in a pure adapter and merge deals by normalized company plus date, preserving every query's niche provenance.
-- Query each selected industry once (up to three) with its niches, all selected locations, customer models and stage in the query; merge deals to bound outbound calls while honoring founder selections.
+- Send at most two deal queries per fresh search (structured first, natural-language fallback merged later), each combining all industries, niches, locations, models and stage; fetch investor profiles only when a row is expanded.
 - Persist provider-produced search results in Cloud with normalized shared cache keys and 24-hour freshness; retain stale results for provider failures and a durable example snapshot so demo searches never depend on Cala availability.
 - Keep cache reads public and cache writes server-owned, accepting only validated inputs and provider-produced output, so callers cannot inject stored investor data.
 - Render investor summaries as expandable rows and preserve all outreach, sourcing and shortlist controls inside the expanded details, keeping the mobile list scannable.
@@ -40,7 +40,7 @@ use the editor.
 - Version cache keys when the provider result shape changes so the durable example and live results share the same enrichment fields.
 - Keep founder-intro drafts deterministic and editable using only returned portfolio relationships; never ask AI to supply missing founder facts.
 - Return cached provider-produced grouped deals before enrichment; enrich each investor in its own parallel invocation and consolidate server-owned profile cache rows, so progressive updates never accept caller-supplied facts.
-- Limit each Cala attempt to 20 seconds, run at most two industry searches or profile invocations concurrently, and retry transient failures once; smaller provider result limits and partial results keep searches usable during slow responses.
+- Limit each Cala attempt to 25 seconds, run at most two industry searches or profile invocations concurrently, and retry transient failures once; smaller provider result limits and partial results keep searches usable during slow responses.
 - Build Similar startups from deduplicated cached investor deals and explicit niche overlap, with deterministic editable founder drafts; this view must never add provider calls or invent relationships.
 - Preserve grouped results on later client/finalization failures and stop queued enrichment after a search is cancelled; obsolete work must not drain provider limits or overwrite the active search.
 

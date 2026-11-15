@@ -47,3 +47,4 @@ use the editor.
 
 - Keep outreach status normalization, cycling, counts and filtering in the saved-items module; resolve missing legacy statuses to Not contacted without changing existing storage keys.
 - Keep fundraising guidance in shared presentation components; persist the results guide’s open state through guarded browser storage without touching search/cache behavior.
+- Keep provider failure messaging in a client-safe pure adapter so rate-limit behavior is independently testable while stale-cache resolution remains server-owned.

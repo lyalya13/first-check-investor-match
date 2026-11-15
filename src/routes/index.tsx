@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Bookmark, Trash2, Copy, Download, ExternalLink, Loader2, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
+import { Bookmark, Trash2, Copy, Download, ExternalLink, Sparkles, ArrowLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -266,7 +266,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       {expanded && <div className="px-2 pb-6 sm:pl-18">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{match.level}</Badge>
-          {!inv.active && <Badge variant="outline">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</Badge>}
+          {!inv.active && <span className="text-xs text-muted-foreground">Last deal {inv.latestDate?.slice(0, 7) ?? "Unknown"}</span>}
           {fit && <Badge variant="outline">{fit === "bigger" ? "Usually backs bigger rounds" : "Similar round size"}</Badge>}
 
         </div>

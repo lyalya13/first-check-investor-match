@@ -5,6 +5,7 @@ import { introMessage } from "@/lib/matching";
 import { dealQueryTarget } from "@/lib/deal-query";
 import { EXAMPLE } from "@/lib/example";
 import { calaSearchError } from "@/lib/cala-errors";
+import { toDeals } from "@/lib/cala-data";
 
 describe("urgent search reliability", () => {
   it("distinguishes exhausted provider timeouts from invalid input", () => {
@@ -53,6 +54,10 @@ describe("urgent search reliability", () => {
 });
 
 describe("similar startups from existing Cala deals", () => {
+  it("does not present Cala's Not disclosed placeholder as a real investor", () => {
+    expect(toDeals([{ company: "YON E Health", investors: "Not disclosed", company_niches: "FemTech" }], "Health & Wellbeing")).toEqual([]);
+    expect(toDeals([{ company: "PimpUp", investors: "Denis Fayolle, Not disclosed" }], "Food & Nutrition")[0]?.investors).toEqual(["Denis Fayolle"]);
+  });
   const deal = { company: "Verified Company", date: "2026-01-01", investors: ["Investor A"], focusNiches: ["FemTech"] };
   it("deduplicates rounds while retaining every named investor", () => {
     expect(similarStartups([{ matchedDeals: [deal] }, { matchedDeals: [{ ...deal, investors: ["Investor B"] }] }], [{ name: "FemTech" }])).toMatchObject([{ company: "Verified Company", investors: ["Investor A", "Investor B"] }]);

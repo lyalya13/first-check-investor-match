@@ -53,3 +53,5 @@ use the editor.
 
 - Normalize multi-select search dimensions in versioned cache keys and reuse only the existing durable provider example for preset compatibility, so new selections never share unrelated cached results.
 - Keep provider query target generation in a client-safe pure module used by the server and tests, so niches, stage, models and locations cannot silently diverge.
+
+- Initialize result filters independently of founder search inputs with every option enabled; treat all customer models as unfiltered so unknown evidence remains visible.

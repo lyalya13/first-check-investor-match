@@ -16,7 +16,7 @@ import { preserveArrivedResults } from "@/lib/search-state";
 import { MultiLocationPicker } from "@/components/multi-location-picker";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
-import { defaultFilter, filterInvestors, ticketFit, defaultPeopleTypes, filterPeopleTypes, classifyInvestor, PEOPLE_TYPES, BUSINESS_MODELS, STAGES, STAGE_LABELS, selectedModels, selectedRegions, type PeopleType, type BusinessModel, type InvestorFilter } from "@/lib/fundraising";
+import { ticketFit, defaultPeopleTypes, filterPeopleTypes, classifyInvestor, PEOPLE_TYPES, BUSINESS_MODELS, STAGES, STAGE_LABELS, selectedModels, selectedRegions, type PeopleType, type BusinessModel } from "@/lib/fundraising";
 
 import { AmountTip, FundraisingGuide, ResultsAmountTip } from "@/components/founder-guidance";
 import { OutreachStatusPill } from "@/components/outreach-status";
@@ -56,7 +56,7 @@ function Index() {
   const [storageNotice, setStorageNotice] = useState("");
   const searchRun = useRef(0);
   const [typeFilter, setTypeFilter] = useState<PeopleType[]>(defaultPeopleTypes(40000));
-  const [modelFilter, setModelFilter] = useState<BusinessModel[]>([]);
+  const [modelFilter, setModelFilter] = useState<BusinessModel[]>([...BUSINESS_MODELS]);
   useEffect(() => { try { setSaved(readSavedItems(window.localStorage)); } catch { /* Storage may be blocked. */ } }, []);
   const persist = (items: SavedItems) => {
     setSaved(items);
@@ -73,12 +73,11 @@ function Index() {
   const visibleSaved = filterOutreachStatus(saved.people, statusFilter);
   const [messages, setMessages] = useState<Record<string, string>>({});
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
-  const [filter, setFilter] = useState<InvestorFilter>("All");
 
   const runSearch = async (searchInput: FounderInput) => {
     const run = ++searchRun.current;
     setTab("results"); setForm(searchInput);
-    setLoading(true); setResult(null); setMessages({}); setFilter(defaultFilter(searchInput.amount)); setRegionFilter("All"); setTypeFilter(defaultPeopleTypes(searchInput.amount)); setModelFilter(selectedModels(searchInput));
+    setLoading(true); setResult(null); setMessages({}); setRegionFilter("All"); setTypeFilter(defaultPeopleTypes(searchInput.amount)); setModelFilter([...BUSINESS_MODELS]);
     try {
       const started = performance.now();
       const input = { ...searchInput, website: searchInput.website || undefined };
@@ -108,7 +107,7 @@ function Index() {
   };
   const starCount = saved.people.filter((p) => p.role === "investor").length;
   const showResults = loading || result;
-  const visibleInvestors = filterBusinessModel(filterPeopleTypes(filterByRegion(filterInvestors(result?.investors ?? [], filter).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
+  const visibleInvestors = filterBusinessModel(filterPeopleTypes(filterByRegion((result?.investors ?? []).map((i) => ({ ...i, region: detailedRegionOf(i.location) })), regionFilter), typeFilter), modelFilter).sort((a,b) => scoreMatch(b,form).score - scoreMatch(a,form).score);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-7 sm:px-8 sm:py-12">
@@ -169,7 +168,7 @@ function Index() {
             <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!result?.ok} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button></div>
           </div>
           <FundraisingGuide />
-          <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter(defaultPeopleTypes(40000)); }} />
+          <ResultsAmountTip amount={form.amount} onAngelsFirst={() => setTypeFilter(["Angel", "Accelerator", "Syndicate / Network"])} />
               <h3 className="mb-1 text-sm font-medium">Investor type</h3><p className="mb-3 text-xs leading-5 text-muted-foreground">Angels usually write the first check. Choose any combination; types are estimated from Cala data and names, with Other when unclear.</p>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor type filter">{PEOPLE_TYPES.map((type) => <Button key={type} size="sm" variant={typeFilter.includes(type) ? "secondary" : "outline"} aria-pressed={typeFilter.includes(type)} onClick={() => setTypeFilter(typeFilter.includes(type) ? typeFilter.filter((t) => t !== type) : [...typeFilter, type])}>{type}</Button>)}<Button size="sm" variant="ghost" onClick={() => setTypeFilter([...PEOPLE_TYPES])}>Show all types</Button></div>
 
@@ -182,9 +181,8 @@ function Index() {
           )}
           {result?.ok && (
             <>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor filter">{(["All", "Angels first", "Funds"] as const).map((f) => <Button key={f} size="sm" variant={filter === f ? "secondary" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</Button>)}</div>
               <h3 className="mb-1 text-sm font-medium">Customers of companies they backed</h3><p className="mb-3 text-xs text-muted-foreground">Choose models to narrow the list, or clear them to see everyone.</p>
-              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{BUSINESS_MODELS.map((model) => <Button key={model} size="sm" variant={modelFilter.includes(model) ? "secondary" : "outline"} aria-pressed={modelFilter.includes(model)} onClick={() => setModelFilter(modelFilter.includes(model) ? modelFilter.filter((m) => m !== model) : [...modelFilter, model])}>{model}</Button>)}<Button size="sm" variant="ghost" onClick={() => setModelFilter([])}>All customer models</Button></div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Business model filter">{BUSINESS_MODELS.map((model) => <Button key={model} size="sm" variant={modelFilter.includes(model) ? "secondary" : "outline"} aria-pressed={modelFilter.includes(model)} onClick={() => setModelFilter(modelFilter.includes(model) ? modelFilter.filter((m) => m !== model) : [...modelFilter, model])}>{model}</Button>)}<Button size="sm" variant="ghost" onClick={() => setModelFilter([...BUSINESS_MODELS])}>All customer models</Button></div>
               <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Investor region filter">{REGIONS.map((r) => <Button key={r} size="sm" variant={regionFilter === r ? "secondary" : "outline"} aria-pressed={regionFilter === r} onClick={() => setRegionFilter(r)}>{r}</Button>)}</div>
               <p className="mb-4 text-sm text-muted-foreground">{result.investors.length} investors from {result.dealCount} matching deals</p>
               {result.cached && <p className="mb-3 text-xs text-muted-foreground">Saved Cala results · {result.fetchedAt.slice(0, 10)}{result.stale ? " · Last available results" : ""}</p>}

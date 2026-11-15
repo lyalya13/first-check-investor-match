@@ -30,8 +30,8 @@ export function guidanceTier(amount: number) {
   if (amount <= 1000000) return "preseed";
   return "seed";
 }
-export function defaultFilter(amount: number): InvestorFilter {
-  return amount <= 150000 ? "Angels first" : "All";
+export function defaultFilter(_amount: number): InvestorFilter {
+  return "All";
 }
 export function ticketFit(ticket: number | null, raise: number) {
   if (ticket == null || ticket <= 0 || raise <= 0) return null;
@@ -67,8 +67,8 @@ export const STAGES = ["idea", "pre-seed", "seed", "series-a"] as const;
 export const STAGE_LABELS = { idea: "Idea", "pre-seed": "Pre-seed", seed: "Seed", "series-a": "Series A" };
 export const PEOPLE_TYPES = ["Angel", "VC", "CVC", "Accelerator", "Family office", "Syndicate / Network", "Other"] as const;
 export type PeopleType = typeof PEOPLE_TYPES[number];
-export function defaultPeopleTypes(amount: number): PeopleType[] {
-  return amount <= 150000 ? ["Angel", "Accelerator", "Syndicate / Network"] : [...PEOPLE_TYPES];
+export function defaultPeopleTypes(_amount: number): PeopleType[] {
+  return [...PEOPLE_TYPES];
 }
 export function classifyInvestor(name: string, evidence?: string): PeopleType {
   const classify = (value: string): PeopleType | undefined => {

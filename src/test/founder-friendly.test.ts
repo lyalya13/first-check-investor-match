@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BUSINESS_MODELS, STAGES, classifyInvestor, defaultPeopleTypes, dealSearchIndustries, filterPeopleTypes } from "@/lib/fundraising";
+import { BUSINESS_MODELS, STAGES, PEOPLE_TYPES, classifyInvestor, defaultPeopleTypes, dealSearchIndustries, filterPeopleTypes } from "@/lib/fundraising";
 import { dealQueryTarget } from "@/lib/deal-query";
 import { EXAMPLE } from "@/lib/example";
 import { searchCacheKey } from "@/lib/search-cache";
-import { scoreMatch, filterBusinessModel } from "@/lib/matching";
+import { scoreMatch, filterBusinessModel, filterByRegion } from "@/lib/matching";
 import { toDeals, mergeDeals } from "@/lib/cala-data";
 
 describe("founder-friendly search rules", () => {
@@ -29,9 +29,9 @@ describe("founder-friendly search rules", () => {
     expect(STAGES).toContain(stage);
     expect(dealQueryTarget({ ...EXAMPLE, stage }, EXAMPLE.category)).toContain(`${label} funding rounds`);
   });
-  it("defaults to Angel, Accelerator and Syndicate / Network through 150K", () => {
-    expect(defaultPeopleTypes(40000)).toEqual(["Angel", "Accelerator", "Syndicate / Network"]);
-    expect(defaultPeopleTypes(150000)).toEqual(["Angel", "Accelerator", "Syndicate / Network"]);
+  it("defaults to every investor type regardless of raise size", () => {
+    expect(defaultPeopleTypes(40000)).toEqual([...PEOPLE_TYPES]);
+    expect(defaultPeopleTypes(150000)).toEqual([...PEOPLE_TYPES]);
     expect(defaultPeopleTypes(150001)).toHaveLength(7);
   });
   it("uses provider evidence before name cues and falls back to Other", () => {
@@ -45,6 +45,16 @@ describe("founder-friendly search rules", () => {
     const rows = [{ name: "A", kind: "Angel" }, { name: "B", kind: "VC" }, { name: "C", kind: "Accelerator" }];
     expect(filterPeopleTypes(rows, ["Angel", "Accelerator"])).toEqual([rows[0], rows[2]]);
     expect(filterPeopleTypes(rows, [])).toEqual([]);
+  });
+  it("keeps every investor with all customer models selected, including unknown models", () => {
+    const rows = [{ matchedDeals: [] }, { matchedDeals: [{ company: "A", investors: [], businessModel: "B2C" as const }] }];
+    expect(filterBusinessModel(rows, [...BUSINESS_MODELS])).toEqual(rows);
+    expect(filterBusinessModel(rows, ["B2C"])).toEqual([rows[1]]);
+  });
+  it("keeps every region until the founder selects a region", () => {
+    const rows = [{ region: "Nordics" as const }, { region: "Unknown" as const }];
+    expect(filterByRegion(rows, "All")).toEqual(rows);
+    expect(filterByRegion(rows, "Nordics")).toEqual([rows[0]]);
   });
   it("parses all provider customer models without guessing", () => {
     for (const model of BUSINESS_MODELS) expect(toDeals([{ company: "A", investors: "X", business_model: model }], "AI")[0]?.businessModel).toBe(model);

@@ -1,4 +1,5 @@
 # First Check improvements
+- [ ] Default results to all types, customer models and regions; remove duplicate filter row and verify.
 - [x] Swept remaining search failure paths: preserve grouped results after unexpected errors, stop cancelled queued work, and tolerate individual profile-cache failures.
 - [x] All 105 tests pass; verified cached example, requested search, saving and editable introductions. No existing records, permissions, settings or example data changed.
 - [x] Fix Cala timeouts with bounded concurrency, one retry and partial results; requested input returned PimpUp / three named investors after Cala recovered; cached example returned 11 deals / 10 investors.

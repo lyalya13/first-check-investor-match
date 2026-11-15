@@ -1,7 +1,7 @@
 # First Check improvements
-- [ ] Apply premium palette, crisp borders and dark shimmering skeletons.
-- [ ] Show grouped live deals immediately and enrich investors in parallel with 20-second call limits.
-- [ ] Preserve caching and partial-source fallback; test and measure a real five-niche search.
+- [x] Apply premium palette, crisp borders and dark shimmering skeletons.
+- [x] Show grouped live deals immediately and enrich investors in parallel with 20-second call limits.
+- [x] Preserve caching and partial-source fallback; test and measure a real five-niche search (0.8s to rows; 23.5s including rate-limited profiles).
 - [x] Inspect real Cala investor, company and deal fields.
 - [x] Add sub-niches, evidence-based matches, region filters and investor profiles.
 - [x] Add LinkedIn links, editable warm-intro drafts and expanded CSV export.

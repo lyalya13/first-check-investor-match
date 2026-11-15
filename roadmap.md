@@ -7,3 +7,4 @@
 - [x] Clarify round sizes and CSV naming.
 - [x] Add durable 24-hour caching, stale fallback, and a precomputed real example.
 - [x] Run all tests and verify desktop/mobile search and outreach.
+- [x] Switch only theme colors to black, white and sage; verify desktop/mobile contrast and run all tests.

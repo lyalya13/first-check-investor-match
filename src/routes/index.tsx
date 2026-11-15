@@ -196,7 +196,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
   };
 
   return (
-    <li className="py-2">
+    <li className="bg-card py-2">
       <Button variant="ghost" aria-expanded={expanded} aria-label={`Show details for ${inv.name}`} onClick={() => setExpanded(!expanded)} className="h-auto min-h-24 w-full justify-start gap-4 rounded-lg px-2 py-4 text-left whitespace-normal">
         <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium">{inv.name.split(/\s+/).map((n) => n[0]).slice(0, 2).join("")}</span>
         <span className="min-w-0 flex-1">

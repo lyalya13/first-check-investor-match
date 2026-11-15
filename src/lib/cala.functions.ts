@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { aggregateInvestors, type Deal } from "./aggregate";
+import { aggregateInvestors, isActive, type Deal } from "./aggregate";
 import { CATEGORIES } from "./fundraising";
 import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS, investorType } from "./cala-data";
+import { searchCacheKey, resolveCachedSearch } from "./search-cache";
+import { EXAMPLE } from "./example";
 
 const BASE = "https://api.cala.ai/v1";
 
@@ -58,6 +60,10 @@ export const findInvestors = createServerFn({ method: "POST" })
   .inputValidator((d) => founderSchema.parse(d))
   .handler(async ({ data }) => {
     try {
+      const { readSearchCache, storeSearchCache } = await import("./cala-cache.server");
+      const key = searchCacheKey(data);
+      const cached = await readSearchCache(key).catch(() => null);
+      const resolved = await resolveCachedSearch({ cached, save: (result) => storeSearchCache(key, result, key === searchCacheKey(EXAMPLE)), fetchLive: async () => {
       const queries: string[] = [];
       let deals: Deal[] = [];
       let successfulQueries = 0;
@@ -104,6 +110,8 @@ export const findInvestors = createServerFn({ method: "POST" })
       }
 
       return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened };
+      } });
+      return { ...resolved.result, investors: resolved.result.investors.map((inv) => ({ ...inv, active: isActive(inv.latestDate) })), cached: resolved.cached, stale: resolved.stale, fetchedAt: resolved.fetchedAt };
     } catch (e) {
       const msg = (e as Error).message;
       return { ok: false as const, error: (msg === "MISSING_KEY" ? "The Cala API key hasn't been added yet." : msg === "CALA_RATE_LIMIT" ? "Cala's request limit has been reached. Please wait a few minutes before searching again." : "We couldn't reach Cala right now. Please try again.") as string, investors: [], queries: [], dealCount: 0 };

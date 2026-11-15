@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Keep category selections and fundraising thresholds in a client-safe shared module so the UI and tests use identical rules.
+- Parse Cala responses in a pure adapter and merge deals by normalized company plus date, preserving every query's niche provenance.
+- Query selected niches independently with OR semantics; broaden to all selected categories when fewer than five unique deals return.

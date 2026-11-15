@@ -44,3 +44,6 @@ use the editor.
 
 - Store named searches and full investor/founder snapshots in versioned browser storage with guarded reads/writes; saved views and CSV must not depend on the current results.
 - Use explicit provider investor types and company business models for filters; missing classifications stay Unknown instead of guessing from names.
+
+- Keep outreach status normalization, cycling, counts and filtering in the saved-items module; resolve missing legacy statuses to Not contacted without changing existing storage keys.
+- Keep fundraising guidance in shared presentation components; persist the results guide’s open state through guarded browser storage without touching search/cache behavior.

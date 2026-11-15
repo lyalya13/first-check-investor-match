@@ -1,9 +1,26 @@
 import type { FounderInput, InvestorResult } from "./cala.functions";
 
 export type SavedSearch = { id: string; name: string; input: FounderInput };
-export type SavedPerson =
+export const OUTREACH_STATUSES = ["Not contacted", "Messaged", "Replied", "Meeting"] as const;
+export type OutreachStatus = typeof OUTREACH_STATUSES[number];
+export type StatusFilter = "All" | OutreachStatus;
+export type SavedPerson = { status?: OutreachStatus } & (
   | { id: string; role: "investor"; investor: InvestorResult; input: FounderInput; query: string }
-  | { id: string; role: "founder"; name: string; company: string; linkedin?: string; source?: string; location?: string; investor: string };
+  | { id: string; role: "founder"; name: string; company: string; linkedin?: string; source?: string; location?: string; investor: string });
+export function outreachStatus(person: { status?: unknown }): OutreachStatus {
+  return OUTREACH_STATUSES.find((status) => status === person.status) ?? "Not contacted";
+}
+export function cycleOutreachStatus(people: SavedPerson[], id: string): SavedPerson[] {
+  return people.map((person) => person.id === id ? { ...person, status: OUTREACH_STATUSES[(OUTREACH_STATUSES.indexOf(outreachStatus(person)) + 1) % OUTREACH_STATUSES.length] ?? "Not contacted" } : person);
+}
+export function filterOutreachStatus(people: SavedPerson[], filter: StatusFilter): SavedPerson[] {
+  return filter === "All" ? people : people.filter((person) => outreachStatus(person) === filter);
+}
+export function outreachCounts(people: SavedPerson[]): Record<OutreachStatus, number> {
+  const counts = { "Not contacted": 0, Messaged: 0, Replied: 0, Meeting: 0 };
+  for (const person of people) counts[outreachStatus(person)]++;
+  return counts;
+}
 export type SavedItems = { searches: SavedSearch[]; people: SavedPerson[] };
 export const SAVED_KEY = "first-check-saved-v1";
 export function personId(role: "investor" | "founder", name: string, company = "") {

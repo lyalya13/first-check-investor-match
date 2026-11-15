@@ -14,9 +14,11 @@ import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type
 import { progressiveMap } from "@/lib/search-performance";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
-import { guidanceTier, defaultFilter, filterInvestors, ticketFit, filterInvestorKind, INVESTOR_TYPES, type InvestorTypeFilter, type InvestorFilter } from "@/lib/fundraising";
+import { defaultFilter, filterInvestors, ticketFit, filterInvestorKind, INVESTOR_TYPES, type InvestorTypeFilter, type InvestorFilter } from "@/lib/fundraising";
 
-import { readSavedItems, writeSavedItems, personId, toggleSavedPerson, searchName, type SavedItems, type SavedPerson } from "@/lib/saved-items";
+import { AmountTip, FundraisingGuide, ResultsAmountTip } from "@/components/founder-guidance";
+import { OutreachStatusPill } from "@/components/outreach-status";
+import { OUTREACH_STATUSES, outreachStatus, cycleOutreachStatus, outreachCounts, filterOutreachStatus, type StatusFilter, readSavedItems, writeSavedItems, personId, toggleSavedPerson, searchName, type SavedItems, type SavedPerson } from "@/lib/saved-items";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -47,6 +49,7 @@ function Index() {
   const [saved, setSaved] = useState<SavedItems>({ searches: [], people: [] });
   const [tab, setTab] = useState<"results" | "saved">("results");
   const [saveModal, setSaveModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [savedName, setSavedName] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
   const searchRun = useRef(0);
@@ -59,6 +62,9 @@ function Index() {
     catch { setStorageNotice("Saving is unavailable in this browser. Your items remain available until you close this page."); }
   };
   const togglePerson = (person: SavedPerson) => persist({ ...saved, people: toggleSavedPerson(saved.people, person) });
+  const cycleStatus = (id: string) => persist({ ...saved, people: cycleOutreachStatus(saved.people, id) });
+  const counts = outreachCounts(saved.people);
+  const visibleSaved = filterOutreachStatus(saved.people, statusFilter);
   const [messages, setMessages] = useState<Record<string, string>>({});
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
   const [filter, setFilter] = useState<InvestorFilter>("All");
@@ -96,8 +102,8 @@ function Index() {
   const exportCsv = () => {
     const rows = saved.people.filter((p) => p.role === "investor");
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [["name", "type", "active", "deals", "round_size", "why", "source", "message", "match_level", "investor_region", "top_niches", "linkedin", "intro_companies"].join(","),
-      ...rows.map((person) => { const i = person.investor; const input = person.input; return [i.name, i.kind ?? "Unknown", i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, input), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? "", scoreMatch(i, input).level, i.region, topNiches(i.matchedDeals).join("; ") || "Unknown", linkedinLink(i.name, i.linkedin).url, introDeals(i.matchedDeals, input.niches).map((d) => d.company).join("; ")].map(esc).join(","); })].join("\n");
+    const csv = [["name", "type", "active", "deals", "round_size", "why", "source", "message", "match_level", "investor_region", "top_niches", "linkedin", "intro_companies", "status"].join(","),
+      ...rows.map((person) => { const i = person.investor; const input = person.input; return [i.name, i.kind ?? "Unknown", i.active ? "yes" : "no", `${i.led} led of ${i.deals}`, i.typicalTicket ?? "", whyFit(i, input), i.summarySources[0]?.url ?? i.sources[0] ?? "", messages[i.name] ?? "", scoreMatch(i, input).level, i.region, topNiches(i.matchedDeals).join("; ") || "Unknown", linkedinLink(i.name, i.linkedin).url, introDeals(i.matchedDeals, input.niches).map((d) => d.company).join("; "), outreachStatus(person)].map(esc).join(","); })].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "first-check-shortlist.csv"; a.click(); URL.revokeObjectURL(a.href);
@@ -118,8 +124,11 @@ function Index() {
       {storageNotice && <p role="status" className="mb-4 text-xs text-muted-foreground">{storageNotice}</p>}
       {tab === "saved" && <section>
         <div className="mb-6 flex items-center justify-between gap-3"><h2 className="font-semibold">Saved people</h2><Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" />Export shortlist ({starCount})</Button></div>
+        <p className="mb-4 text-sm text-muted-foreground" aria-label="Outreach counts">{counts["Not contacted"]} not contacted · {counts.Messaged} messaged · {counts.Replied} replied · {counts.Meeting} meeting</p>
+        <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Outreach status filter">{(["All", ...OUTREACH_STATUSES] as const).map((status) => <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "outline"} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status}</Button>)}</div>
+        {!!saved.people.length && !visibleSaved.length && <p className="py-5 text-sm text-muted-foreground">No saved people with this status.</p>}
         {!saved.people.length && <p className="border-y py-8 text-sm text-muted-foreground">No saved people yet.</p>}
-        <ol className="divide-y-[1.5px] border-[1.5px]">{saved.people.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button></li>)}</ol>
+        <ol className="divide-y-[1.5px] border-[1.5px]">{visibleSaved.map((person) => person.role === "investor" ? <InvestorCard key={person.id} inv={person.investor} founder={person.input} query={person.query} starred onStar={() => togglePerson(person)} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus} message={messages[person.investor.name]} onMessage={(m) => setMessages((old) => ({ ...old, [person.investor.name]: m }))} /> : <li key={person.id} className="bg-card px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="mt-1 text-xs text-muted-foreground">Founder · {person.company} · {person.location || "Unknown"}</p><p className="mt-1 text-xs text-muted-foreground">Backed by {person.investor}<SourceLink url={person.source} /></p></div><Button variant="ghost" size="icon" aria-label={`Remove saved ${person.name}`} title="Remove saved person" onClick={() => togglePerson(person)}><Bookmark className="fill-star text-star" /></Button></div><Button asChild variant="outline" size="sm" className="mt-3"><a href={linkedinLink(person.name, person.linkedin).url} target="_blank" rel="noreferrer">{linkedinLink(person.name, person.linkedin).label}<ExternalLink className="size-3" /></a></Button><div className="mt-3"><OutreachStatusPill person={person} onCycle={cycleStatus} /></div></li>)}</ol>
       </section>}
       {tab === "results" && !showResults && (
         <form onSubmit={(e) => { e.preventDefault(); void runSearch(form); }} className="space-y-7">
@@ -142,14 +151,6 @@ function Index() {
             <Field label="Amount raising (€)"><Input aria-label="Amount raising (€)" required type="number" min={0} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="40000" /><AmountTip amount={form.amount} /></Field>
           </div>
           <Field label="Website (optional)"><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" /></Field>
-          <details className="border-y py-5 text-sm">
-            <summary className="cursor-pointer font-medium">New to fundraising? 3 things to know</summary>
-            <ol className="mt-3 list-decimal space-y-2 pl-5 text-muted-foreground">
-              <li>Angels usually come before funds at pre-seed.</li>
-              <li>Look for investors who still invest today, not 3 years ago.</li>
-              <li>Investors who led a round are the ones to talk to first, others usually follow a lead.</li>
-            </ol>
-          </details>
           <Button type="button" variant="outline" disabled={!form.description.trim() || !form.category || !form.region || !form.amount} onClick={() => { setSavedName(searchName(form)); setSaveModal(true); }}><Bookmark className="size-4" />Save search</Button>
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setForm(EXAMPLE)}><Sparkles className="size-4" /> Try with an example</Button>
@@ -164,6 +165,8 @@ function Index() {
             <Button variant="ghost" onClick={() => { searchRun.current++; setLoading(false); setResult(null); }}><ArrowLeft className="size-4" /> Edit details</Button>
             <Button variant="outline" disabled={!starCount} onClick={exportCsv}><Download className="size-4" /> Export shortlist ({starCount})</Button>
           </div>
+          <FundraisingGuide />
+          <ResultsAmountTip amount={form.amount} onAngelsFirst={() => { setFilter("Angels first"); setTypeFilter("All"); }} />
           {loading && !result && <LoadingState />}
           {loading && result?.ok && <p role="status" className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Checking each investor's recent activity…</p>}
           {result?.ok && result.partial && <p role="status" className="mb-4 text-xs text-muted-foreground">Some sources were slow, showing what we found.</p>}
@@ -185,7 +188,7 @@ function Index() {
               <ol className="divide-y-[1.5px] border-[1.5px]">
                 {visibleInvestors.map((inv) => (
                   <InvestorCard key={inv.name} inv={inv} founder={form} query={result.queries.join("\n\n")}
-                    starred={saved.people.some((p) => p.id === personId("investor", inv.name))} onStar={() => togglePerson({ id: personId("investor", inv.name), role: "investor", investor: inv, input: form, query: result.queries.join("\n\n") })} savedPeople={saved.people} onSavePerson={togglePerson}
+                    starred={saved.people.some((p) => p.id === personId("investor", inv.name))} onStar={() => togglePerson({ id: personId("investor", inv.name), role: "investor", investor: inv, input: form, query: result.queries.join("\n\n") })} savedPeople={saved.people} onSavePerson={togglePerson} onCycleStatus={cycleStatus}
                     message={messages[inv.name]} onMessage={(m) => setMessages((s) => ({ ...s, [inv.name]: m }))} />
                 ))}
               </ol>
@@ -200,16 +203,6 @@ function Index() {
 
 function whyFit(i: InvestorResult, f: FounderInput) {
   return scoreMatch(i,f).reasons.join(" · ") || "Unknown";
-}
-
-function AmountTip({ amount }: { amount: number }) {
-  const tier = guidanceTier(amount);
-  return <p className="text-xs leading-relaxed text-muted-foreground">
-    {tier === "small" && <>At this size, start with <strong>angels</strong>, <strong>grants and equity-free competitions</strong>, and <strong>accelerators</strong>. Funds rarely back rounds this small.</>}
-    {tier === "angels" && <>Start with <strong>angels, angel networks and syndicates</strong>, and pre-seed programs.</>}
-    {tier === "preseed" && <>Start with <strong>angels and pre-seed funds</strong>. Larger VCs usually come in later.</>}
-    {tier === "seed" && <><strong>Seed funds and VCs</strong> fit this size.</>}
-  </p>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -235,10 +228,12 @@ function SourceLink({ url, label = "source" }: { url?: string | undefined; label
   return <a href={verified} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
 }
 
-function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage, savedPeople, onSavePerson }: {
+function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage, savedPeople, onSavePerson, onCycleStatus }: {
+  onCycleStatus: (id: string) => void;
   savedPeople: SavedPerson[]; onSavePerson: (person: SavedPerson) => void;
   inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string | undefined; onMessage: (m: string) => void;
 }) {
+  const savedInvestor = savedPeople.find((person) => person.id === personId("investor", inv.name));
   const draft = useServerFn(draftMessage);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -274,6 +269,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
         <ChevronDown className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>
       <Button variant="ghost" size="icon" className="mr-2 shrink-0" title={starred ? "Remove saved investor" : "Save investor"} aria-label={starred ? `Remove saved ${inv.name}` : `Save ${inv.name}`} onClick={onStar}><Bookmark className={starred ? "fill-star text-star" : ""} /></Button></div>
+      {savedInvestor && <div className="px-4 pb-3 sm:pl-18"><OutreachStatusPill person={savedInvestor} onCycle={onCycleStatus} /></div>}
       {expanded && <div className="px-2 pb-6 sm:pl-18">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{inv.kind ?? "Unknown"}</Badge>
@@ -299,7 +295,7 @@ function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage
       <ul className="mt-3 space-y-3 text-xs text-muted-foreground">{recentDeals(inv.matchedDeals).map((d) => <li key={`${d.company}|${d.date}`}><span className="font-medium text-foreground">{d.company}</span> · {d.stage || "Unknown"} · {d.date ? d.datePrecision === "month" ? d.date.slice(0,7) : d.datePrecision === "year" ? d.date.slice(0,4) : d.date : "Unknown"}<SourceLink url={d.source} /><span className="mt-1 block">{d.focusNiches?.join(" / ") || "Unknown"} · {d.location || "Unknown"}</span><span className="mt-1 block">Found through: {d.niches?.join(" / ") || "Unknown"}</span></li>)}</ul>
       <h3 className="mt-6 text-xs font-semibold text-muted-foreground">Get a warm intro</h3>
       <p className="mt-2 text-xs text-muted-foreground">Founders they backed often give the warmest intros.</p>
-      <ul className="mt-3 space-y-4">{introDeals(inv.matchedDeals, founder.niches).map((d) => <li key={d.company} className="border-b pb-4 text-sm"><p className="font-medium">{d.company}<SourceLink url={d.source} /></p>{(d.founders?.length ? d.founders : [{ name: "Unknown" }]).map((person) => <div key={person.name} className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{person.name}</span><Button asChild variant="outline" size="sm"><a href={linkedinLink(person.name === "Unknown" ? d.company : person.name, person.linkedin).url} target="_blank" rel="noreferrer">Find on LinkedIn<ExternalLink className="size-3" /></a></Button><Button size="sm" variant="outline" onClick={() => { setDraftText(introMessage(founder.description, inv.name, d.company, person.name === "Unknown" ? undefined : person.name)); setModalTitle(`Ask for intro · ${person.name === "Unknown" ? d.company : person.name}`); setCopied(false); setModal(true); }}>Ask for intro</Button>{person.name !== "Unknown" && <Button size="sm" variant="outline" aria-label={`Save founder ${person.name}`} aria-pressed={savedPeople.some((p) => p.id === personId("founder", person.name, d.company))} onClick={() => onSavePerson({ id: personId("founder", person.name, d.company), role: "founder", name: person.name, company: d.company, ...(person.linkedin ? { linkedin: person.linkedin } : {}), ...(d.source ? { source: d.source } : {}), ...(d.location ? { location: d.location } : {}), investor: inv.name })}><Bookmark className={savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "size-3 fill-star text-star" : "size-3"} />{savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "Saved" : "Save"}</Button>}</div>)}</li>)}</ul>
+      <ul className="mt-3 space-y-4">{introDeals(inv.matchedDeals, founder.niches).map((d) => <li key={d.company} className="border-b pb-4 text-sm"><p className="font-medium">{d.company}<SourceLink url={d.source} /></p>{(d.founders?.length ? d.founders : [{ name: "Unknown" }]).map((person) => <div key={person.name} className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{person.name}</span><Button asChild variant="outline" size="sm"><a href={linkedinLink(person.name === "Unknown" ? d.company : person.name, person.linkedin).url} target="_blank" rel="noreferrer">Find on LinkedIn<ExternalLink className="size-3" /></a></Button><Button size="sm" variant="outline" onClick={() => { setDraftText(introMessage(founder.description, inv.name, d.company, person.name === "Unknown" ? undefined : person.name)); setModalTitle(`Ask for intro · ${person.name === "Unknown" ? d.company : person.name}`); setCopied(false); setModal(true); }}>Ask for intro</Button>{person.name !== "Unknown" && <Button size="sm" variant="outline" aria-label={`Save founder ${person.name}`} aria-pressed={savedPeople.some((p) => p.id === personId("founder", person.name, d.company))} onClick={() => onSavePerson({ id: personId("founder", person.name, d.company), role: "founder", name: person.name, company: d.company, ...(person.linkedin ? { linkedin: person.linkedin } : {}), ...(d.source ? { source: d.source } : {}), ...(d.location ? { location: d.location } : {}), investor: inv.name })}><Bookmark className={savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "size-3 fill-star text-star" : "size-3"} />{savedPeople.some((p) => p.id === personId("founder", person.name, d.company)) ? "Saved" : "Save"}</Button>}{savedPeople.filter((p) => p.id === personId("founder", person.name, d.company)).map((p) => <OutreachStatusPill key={p.id} person={p} onCycle={onCycleStatus} />)}</div>)}</li>)}</ul>
       {inv.summary && (
         <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">{inv.summary}
           {inv.summarySources.slice(0, 3).map((s, i) => <SourceLink key={s.url} url={s.url} label={`[${i + 1}]`} />)}

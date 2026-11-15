@@ -1,4 +1,7 @@
 # First Check improvements
+- [x] Highlight amount guidance and move the first-visit beginner guide to results.
+- [x] Add saved-person outreach statuses, counts, filtering, persistence and CSV status.
+- [x] All 69 tests pass; verified guidance, status changes, counts, filters, persistence and CSV on desktop/mobile.
 - [x] Replace niche calls with at most two broad-industry calls and optional evidence-based sharpening.
 - [x] Add detailed region, investor-type and business-model filters.
 - [x] Add browser-saved searches, investors and founders, Saved view and saved-investor CSV.

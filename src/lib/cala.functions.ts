@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { aggregateInvestors, isActive, type Deal } from "./aggregate";
 import { CATEGORIES } from "./fundraising";
-import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS, investorType } from "./cala-data";
+import { toDeals, mergeDeals, responseRows, MIN_NICHE_DEALS, investorType, investorProfile } from "./cala-data";
+import { regionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
 
@@ -54,6 +55,10 @@ export type InvestorResult = ReturnType<typeof aggregateInvestors>[number] & {
   summary: string;
   summarySources: { title: string; url: string }[];
   summaryQuery: string;
+  location?: string;
+  region: InvestorRegion;
+  linkedin?: string;
+  profileSource?: string;
 };
 
 export const findInvestors = createServerFn({ method: "POST" })
@@ -70,7 +75,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       let rateLimited = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
-        const q = `Find pre-seed or seed funding rounds announced since January 1, 2024 for ${niche} startups in ${data.region}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), date (YYYY-MM-DD), source (article URL). Only include real rounds with named investors. Limit 100.`;
+        const q = `Find pre-seed or seed funding rounds announced since January 1, 2024 for ${niche} startups in ${data.region}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches, prefer exact labels from: ${data.niches.map((n) => n.name).join(", ")}; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url. Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
         queries.push(q);
         try {
           const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
@@ -104,8 +109,10 @@ export const findInvestors = createServerFn({ method: "POST" })
         const batch = await Promise.all(top.slice(offset, offset + 2).map(async (inv) => {
         const q = `${inv.name} recent investments and investment focus`;
         let summary = "", src: { title: string; url: string }[] = [];
+        let profile: ReturnType<typeof investorProfile> = { location: undefined, linkedin: undefined, source: undefined };
+        try { profile = investorProfile(await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: `Find the investor named exactly "${inv.name}". Return name, headquarters_location (where this investor is based, NOT portfolio locations), linkedin_url, source. Only verified Cala data; null for missing fields. Do not include emails. Limit 1.` }) }), inv.name); } catch (error) { if (cached) throw error; }
         try { const r = await cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: q }) }); summary = answerOf(r); src = sourcesOf(r); } catch (error) { if (cached) throw error; }
-        return { ...inv, type: investorType(inv.name, summary), summary, summarySources: src, summaryQuery: q };
+        return { ...inv, type: investorType(inv.name, summary), summary, summarySources: src, summaryQuery: q, location: profile.location, region: regionOf(profile.location), linkedin: profile.linkedin, profileSource: profile.source };
         }));
         investors.push(...batch);
       }

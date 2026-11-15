@@ -52,7 +52,9 @@ describe("founder-friendly search rules", () => {
   });
   it("mentions supported customer models in why they fit and filters multiple models", () => {
     const rows = [{ region: "Unknown" as const, active: false, led: 0, matchedDeals: [{ company: "A", investors: [], businessModel: "B2G" as const }] }];
-    expect(scoreMatch(rows[0], { ...EXAMPLE, businessModels: ["B2G", "C2C"] }).reasons).toContain("Backed B2G companies — similar customers to yours");
+    const investor = rows[0];
+    if (!investor) throw new Error("Missing test investor");
+    expect(scoreMatch(investor, { ...EXAMPLE, businessModels: ["B2G", "C2C"] }).reasons).toContain("Backed B2G companies — similar customers to yours");
     expect(filterBusinessModel(rows, ["B2G", "C2C"])).toEqual(rows);
     expect(filterBusinessModel(rows, ["B2B2C"])).toEqual([]);
   });

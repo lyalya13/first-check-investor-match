@@ -83,6 +83,7 @@ export const findInvestors = createServerFn({ method: "POST" })
           console.error(`[cala] Query failed for ${niche}`, (e as Error).message);
           if ((e as Error).message === "Cala 429") rateLimited = true;
           if ((e as Error).message === "MISSING_KEY") throw e;
+          if (cached) throw e;
           return [];
         }
       };
@@ -103,7 +104,7 @@ export const findInvestors = createServerFn({ method: "POST" })
         const batch = await Promise.all(top.slice(offset, offset + 2).map(async (inv) => {
         const q = `${inv.name} recent investments and investment focus`;
         let summary = "", src: { title: string; url: string }[] = [];
-        try { const r = await cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: q }) }); summary = answerOf(r); src = sourcesOf(r); } catch {}
+        try { const r = await cala("/knowledge/search", { method: "POST", body: JSON.stringify({ input: q }) }); summary = answerOf(r); src = sourcesOf(r); } catch (error) { if (cached) throw error; }
         return { ...inv, type: investorType(inv.name, summary), summary, summarySources: src, summaryQuery: q };
         }));
         investors.push(...batch);

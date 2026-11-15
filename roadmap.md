@@ -1,4 +1,7 @@
 # First Check improvements
+- [ ] Apply minimal light theme, compact people list, quiet guidance and thin progress loading.
+- [ ] Clarify Typical ticket with round-size caption and calm Cala rate-limit messaging.
+- [ ] Preserve saved features and cache; run all tests and the example search on desktop/mobile.
 - [x] Highlight amount guidance and move the first-visit beginner guide to results.
 - [x] Add saved-person outreach statuses, counts, filtering, persistence and CSV status.
 - [x] All 69 tests pass; verified guidance, status changes, counts, filters, persistence and CSV on desktop/mobile.

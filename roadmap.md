@@ -1,4 +1,8 @@
 # First Check improvements
+- [ ] Fix Cala timeouts with bounded concurrency, one retry and partial results; verify the requested real search and example.
+- [ ] Clarify saving with toasts and include saved searches in Saved; keep investor type chips visible.
+- [ ] Collapse niche choices and add Similar startups with sourced deals and editable warm-intro drafts.
+- [ ] Run all tests and verify mobile/desktop flows.
 - [x] Add three-industry niche searches, multiple business models and regions, and all four stages.
 - [x] Add founder-friendly hints, visible guidance and independent investor-type chips.
 - [x] Preserve the real cached example and saved features; 87 tests pass and cached example returns 11 deals / 10 investors; verified at 390px and desktop.

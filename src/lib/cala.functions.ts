@@ -6,7 +6,7 @@ import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from
 import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
-import { CALA_TIMEOUT_MS, parallelMap } from "./search-performance";
+import { CALA_TIMEOUT_MS, CALA_SEARCH_CONCURRENCY, parallelMap, retryCala } from "./search-performance";
 import { dealQueryTarget } from "./deal-query";
 import { calaSearchError } from "./cala-errors";
 
@@ -33,6 +33,7 @@ export type FounderInput = z.infer<typeof founderSchema>;
 async function cala(path: string, init?: RequestInit): Promise<any> {
   const key = process.env["CALA_API_KEY"];
   if (!key) throw new Error("MISSING_KEY");
+  return retryCala(async () => {
   const res = await fetch(BASE + path, {
     signal: AbortSignal.timeout(CALA_TIMEOUT_MS),
     ...init,
@@ -42,6 +43,7 @@ async function cala(path: string, init?: RequestInit): Promise<any> {
   console.log(`[cala] ${init?.method ?? "GET"} ${path} -> ${res.status}: ${text.slice(0, 6000)}`);
   if (!res.ok) throw new Error(`Cala ${res.status}`);
   try { return JSON.parse(text); } catch { return { raw: text }; }
+  });
 }
 
 function sourcesOf(data: any): { title: string; url: string }[] {
@@ -93,7 +95,7 @@ export const findInvestors = createServerFn({ method: "POST" })
       let partial = false;
       const diagnostics: { niche: string; fields: string[]; rows: number; parsed: number }[] = [];
       const tryQuery = async (niche: string) => {
-        const q = `Find ${dealQueryTarget(data, niche)}. Return one row per company and funding date, with fields company, investors (all named investors), lead_investor, amount (total round size, including currency), round_type, date (YYYY-MM-DD; preserve month-only precision if day unknown), source (article URL), company_location, company_niches (specific verified business niches; only labels that actually apply), founders (objects with name and linkedin_url), company_linkedin_url, business_model (B2B, B2C, B2B2C, B2G, C2C, Other, both, or null, verified company customer model). Only real Cala data; never invent names, locations or URLs. Unknown fields null. Only include real rounds with named investors. Limit 100.`;
+        const q = `Find ${dealQueryTarget(data, niche)}. Return up to 30 real rounds with named investors, one row per company and date. Fields: company, investors, lead_investor, amount (total round size with currency), round_type, date (preserve known precision), source (article URL), company_location, company_niches (verified specific areas), founders (name, linkedin_url), company_linkedin_url, business_model (verified customer model). Unknown fields null. Never invent facts.`;
         queries.push(q);
         try {
           const raw = await cala("/knowledge/query", { method: "POST", body: JSON.stringify({ input: q }) });
@@ -111,7 +113,7 @@ export const findInvestors = createServerFn({ method: "POST" })
         }
       };
       const industries = dealSearchIndustries(data);
-      deals = mergeDeals((await parallelMap(industries, tryQuery, 3)).flat());
+      deals = mergeDeals((await parallelMap(industries, tryQuery, CALA_SEARCH_CONCURRENCY)).flat());
       const broadened = false;
       if (!successfulQueries) throw new Error(rateLimited ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
       console.log("[cala] Parsed search", JSON.stringify({ diagnostics, dealCount: deals.length }));
@@ -120,7 +122,6 @@ export const findInvestors = createServerFn({ method: "POST" })
         ...inv, type: investorType(inv.name, ""), kind: classifyInvestor(inv.name), summary: "", summarySources: [],
         summaryQuery: `${inv.name} recent investments and investment focus`, region: "Unknown",
       }));
-      if (partial && cached) throw new Error("PARTIAL_SOURCES");
       return { ok: true as const, investors, queries, dealCount: deals.length, diagnostics, broadened, partial, enrichmentPending: investors.length > 0 };
       } });
       console.log("[cala timing] grouped search", JSON.stringify({ niches: data.niches.length, elapsedMs: Math.round(performance.now() - started), cached: resolved.cached, deals: resolved.result.dealCount }));

@@ -1,4 +1,5 @@
 import type { Deal } from "./aggregate";
+import { safeUrl } from "./matching";
 
 type Row = Record<string, any>;
 const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -10,7 +11,7 @@ function field(row: Row, names: string[]) {
   return undefined;
 }
 function text(value: any): string | undefined {
-  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "string") return /^(unknown|null|n\/a|undisclosed)$/i.test(value.trim()) ? undefined : value.trim() || undefined;
   if (typeof value === "number") return String(value);
   if (Array.isArray(value)) return text(value[0]);
   if (value && typeof value === "object") return text(value.name ?? value.title ?? value.value ?? value.url);
@@ -19,7 +20,7 @@ function text(value: any): string | undefined {
 function names(value: any): string[] {
   if (Array.isArray(value)) return value.flatMap(names);
   if (value && typeof value === "object") return names(value.name ?? value.value ?? value.entities ?? []);
-  if (typeof value === "string") return value.split(/[,;]|\s+and\s+/).map((s) => s.replace(/\s*\([^)]*\)/g, "").trim()).filter((s) => !!s && !/^(?:angel investors?|\+?\d+ others?|.*team members?|undisclosed|unknown)$/i.test(s));
+  if (typeof value === "string") return value.replace(/angel investors? including\s*/gi, "").split(/[,;]|\s+and\s+/).map((s) => s.replace(/\s*\([^)]*\)/g, "").trim()).filter((s) => !!s && !/^(?:angel investors?|\+?\d+ others?|.*team members?|undisclosed|unknown|null)$/i.test(s));
   return [];
 }
 export function amountValue(value: any): number | undefined {
@@ -41,13 +42,26 @@ export function toDeals(data: any, niche: string): Deal[] {
     const o = { ...r, ...(r['properties'] ?? r['fields'] ?? r['attributes'] ?? {}) };
     const company = text(field(o, ["company", "company_name", "startup", "organization", "name"])) ?? "";
     const investors = names(field(o, ["investors", "investor", "participating_investors", "investor_names"]));
-    const lead = names(field(o, ["lead_investor", "lead_investors", "lead"])).join(", ") || undefined;
-    const date = text(field(o, ["date", "announced_date", "announcement_date", "funding_date", "announced_on"]));
-    const source = text(field(o, ["source", "source_url", "url", "sources"]));
+    const lead = names(field(o, ["lead_investor", "lead_investors", "lead"]))[0];
+    const rawDate = text(field(o, ["date", "announced_date", "announcement_date", "funding_date", "announced_on"]));
+    const date = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString().slice(0,10) : undefined;
+    const datePrecision = rawDate && /^\d{4}$/.test(rawDate) ? "year" as const : rawDate && (/^[A-Za-z]+\s+\d{4}$/.test(rawDate) || /^\d{4}-\d{2}$/.test(rawDate)) ? "month" as const : "day" as const;
+    const source = safeUrl(text(field(o, ["source", "source_url", "url", "sources"])));
     const rawAmount = field(o, ["amount", "amount_raised", "raised", "money_raised", "funding_amount"]);
-    const amount = typeof rawAmount === "string" && /\$|£|DKK|SEK|NOK|USD|GBP/i.test(rawAmount) && !/€|EUR/i.test(rawAmount) ? undefined : amountValue(rawAmount);
+    const euro = typeof rawAmount === "string" ? rawAmount.match(/(?:€|EUR)\s*(\d[\d,.]*\s*(?:billion|million|thousand|bn|[bmk])?)/i) : null;
+    const amount = euro ? amountValue(euro[1]) : typeof rawAmount === "string" && /\$|£|DKK|SEK|NOK|USD|GBP/i.test(rawAmount) ? undefined : amountValue(rawAmount);
+    const stageRaw = text(field(o,["round_type","stage","round","series"]));
+    const stage = stageRaw && /pre[\s-]?seed/i.test(stageRaw) ? "pre-seed" : stageRaw && /^seed$/i.test(stageRaw) ? "seed" : stageRaw;
+    const location = text(field(o,["company_location","location","headquarters"]));
+    const focusNiches = names(field(o,["company_niches","sub_niches","niches","industry_niches"]));
+    const founderRaw = field(o,["founders","founder_names","founder"]);
+    const founderUrls = field(o,["founder_linkedin_urls"]);
+    const founders = Array.isArray(founderRaw) && founderRaw.some((f) => f && typeof f === "object")
+      ? founderRaw.flatMap((f) => { const name = text(f?.name); return name ? [{ name, linkedin: safeUrl(text(f.linkedin_url ?? f.linkedin)) }] : []; })
+      : names(founderRaw).map((name) => ({ name, linkedin: founderUrls && typeof founderUrls === "object" && !Array.isArray(founderUrls) ? safeUrl(text(founderUrls[name])) : undefined }));
+    const companyLinkedin = safeUrl(text(field(o,["company_linkedin_url","company_linkedin"])));
     if (!company || (!investors.length && !lead)) return [];
-    return [{ company, investors, lead, date, source, amount, niches: [niche] }];
+    return [{ company, investors, lead, date, datePrecision, source, amount, niches: [niche], stage, location, focusNiches, founders, companyLinkedin }];
   });
 }
 export function mergeDeals(deals: Deal[]): Deal[] {
@@ -63,11 +77,22 @@ export function mergeDeals(deals: Deal[]): Deal[] {
       amount: existing.amount ?? deal.amount,
       source: existing.source ?? deal.source,
       niches: [...new Set([...(existing.niches ?? []), ...(deal.niches ?? [])])],
+      focusNiches: [...new Set([...(existing.focusNiches ?? []), ...(deal.focusNiches ?? [])])],
+      stage: existing.stage ?? deal.stage,
+      location: existing.location ?? deal.location,
+      founders: [...new Map([...(existing.founders ?? []), ...(deal.founders ?? [])].map((f) => [f.name.toLowerCase(), f])).values()],
+      companyLinkedin: existing.companyLinkedin ?? deal.companyLinkedin,
     } : { ...deal });
   }
   return [...merged.values()];
 }
 export const MIN_NICHE_DEALS = 5;
+
+export function investorProfile(data: any, name: string) {
+  const row = responseRows(data).find((r) => normalized(text(field(r,["name","investor","investor_name"])) ?? "") === normalized(name));
+  if (!row) return { location: undefined, linkedin: undefined, source: undefined };
+  return { location: text(field(row,["headquarters_location","registered_address","location","based_in"])), linkedin: safeUrl(text(field(row,["linkedin_url","linkedin"]))), source: safeUrl(text(field(row,["source","source_url"]))) };
+}
 
 export function investorType(name: string, profile: string): "angel" | "fund" {
   const intro = profile.slice(0, 650);

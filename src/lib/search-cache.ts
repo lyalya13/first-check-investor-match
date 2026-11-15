@@ -5,6 +5,7 @@ const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase(
 
 export function searchCacheKey(input: SearchInput): string {
   return JSON.stringify({
+    version: 2,
     niches: [...new Set(input.niches.map((n) => normalize(n.name)))].sort(),
     categories: [...new Set([input.category, ...input.niches.map((n) => n.category)].map(normalize))].sort(),
     region: normalize(input.region), stage: normalize(input.stage), amount: input.amount,

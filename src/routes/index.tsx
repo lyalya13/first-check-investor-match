@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
 import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { progressiveMap } from "@/lib/search-performance";
+import { preserveArrivedResults } from "@/lib/search-state";
 import { MultiLocationPicker } from "@/components/multi-location-picker";
 import { IndustryPicker } from "@/components/industry-picker";
 import { EXAMPLE } from "@/lib/example";
@@ -95,13 +96,16 @@ function Index() {
             partial: current.partial || !update.ok || (update.ok && update.partial),
             investors: current.investors.map((row) => row.name === inv.name && update.ok ? update.investor : row),
           } : current);
+        }, () => run === searchRun.current);
+        if (run !== searchRun.current) return;
+        await finish({ data: input }).catch(() => {
+          if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, partial: true } : current);
         });
-        await finish({ data: input }).catch(() => {});
         if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
       }
       console.info("[First Check timing] search", { niches: input.niches.length, elapsedMs: Math.round(performance.now() - started), cached: grouped.ok && grouped.cached });
     }
-    catch { if (run === searchRun.current) setResult({ ok: false, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 }); }
+    catch { if (run === searchRun.current) setResult((current) => preserveArrivedResults(current, { ok: false as const, error: "We couldn't reach Cala right now. Please try again.", investors: [], queries: [], dealCount: 0 })); }
     finally { if (run === searchRun.current) setLoading(false); }
   };
 

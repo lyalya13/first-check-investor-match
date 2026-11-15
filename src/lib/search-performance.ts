@@ -27,6 +27,24 @@ export async function parallelMap<T, R>(items: T[], run: (item: T) => Promise<R>
   return results;
 }
 
-export async function progressiveMap<T, R>(items: T[], run: (item: T) => Promise<R>, onResult: (result: R, item: T) => void): Promise<void> {
-  await parallelMap(items, async (item) => { onResult(await run(item), item); }, CALA_SEARCH_CONCURRENCY);
+export async function progressiveMap<T, R>(items: T[], run: (item: T) => Promise<R>, onResult: (result: R, item: T) => void, isCurrent: () => boolean = () => true): Promise<void> {
+  await parallelMap(items, async (item) => {
+    if (!isCurrent()) return;
+    const result = await run(item);
+    if (isCurrent()) onResult(result, item);
+  }, CALA_SEARCH_CONCURRENCY);
+}
+
+/** A missing or failed profile-cache read keeps that investor's grouped deal facts. */
+export async function consolidateProfiles<T>(investors: T[], read: (investor: T) => Promise<{ investor: T; partial?: boolean } | null>) {
+  let partial = false;
+  const rows = await parallelMap(investors, async (investor) => {
+    try {
+      const profile = await read(investor);
+      if (!profile) { partial = true; return investor; }
+      partial = partial || !!profile.partial;
+      return profile.investor;
+    } catch { partial = true; return investor; }
+  });
+  return { investors: rows, partial };
 }

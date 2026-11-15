@@ -6,7 +6,7 @@ import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from
 import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
-import { CALA_TIMEOUT_MS, CALA_SEARCH_CONCURRENCY, parallelMap, retryCala } from "./search-performance";
+import { CALA_TIMEOUT_MS, CALA_SEARCH_CONCURRENCY, parallelMap, retryCala, consolidateProfiles } from "./search-performance";
 import { dealQueryTarget } from "./deal-query";
 import { calaSearchError } from "./cala-errors";
 
@@ -172,12 +172,13 @@ export const finishInvestorSearch = createServerFn({ method: "POST" })
     const cached = await readSearchCache(key);
     if (!cached || !cached.result.enrichmentPending) return { ok: true as const };
     let partial = cached.result.partial ?? false;
-    const investors = await parallelMap(cached.result.investors, async (inv) => {
+    const consolidated = await consolidateProfiles(cached.result.investors, async (inv) => {
       const enriched = await readSearchCache(JSON.stringify({ search: key, investor: inv.name, enrichment: 1 }));
-      if (!enriched?.result.investors[0]) { partial = true; return inv; }
-      partial = partial || !!enriched.result.partial;
-      return enriched.result.investors[0];
+      const investor = enriched?.result.investors[0];
+      return investor ? { investor, partial: !!enriched?.result.partial } : null;
     });
+    const investors = consolidated.investors;
+    partial = partial || consolidated.partial;
     await storeSearchCache(key, { ...cached.result, investors, partial, enrichmentPending: false }, cached.example);
     return { ok: true as const };
   });

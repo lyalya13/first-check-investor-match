@@ -42,6 +42,7 @@ use the editor.
 - Return cached provider-produced grouped deals before enrichment; enrich each investor in its own parallel invocation and consolidate server-owned profile cache rows, so progressive updates never accept caller-supplied facts.
 - Limit each Cala attempt to 20 seconds, run at most two industry searches or profile invocations concurrently, and retry transient failures once; smaller provider result limits and partial results keep searches usable during slow responses.
 - Build Similar startups from deduplicated cached investor deals and explicit niche overlap, with deterministic editable founder drafts; this view must never add provider calls or invent relationships.
+- Preserve grouped results on later client/finalization failures and stop queued enrichment after a search is cancelled; obsolete work must not drain provider limits or overwrite the active search.
 
 - Store named searches and full investor/founder snapshots in versioned browser storage with guarded reads/writes; saved views and CSV must not depend on the current results.
 - Parse customer models only from provider evidence; estimate investor categories from explicit Cala classifications then distinctive name cues, with Other as the fallback to avoid asserting unsupported classifications.

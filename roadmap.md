@@ -1,4 +1,6 @@
 # First Check improvements
+- [ ] Sweep remaining search failure paths: preserve grouped results after unexpected errors, stop cancelled queued work, and tolerate individual profile-cache failures.
+- [ ] Verify search cancellation, finalization and saved reopening without changing existing records or settings.
 - [x] Fix Cala timeouts with bounded concurrency, one retry and partial results; requested input returned PimpUp / three named investors after Cala recovered; cached example returned 11 deals / 10 investors.
 - [x] Clarify saving with toasts and include saved searches in Saved; keep investor type chips visible.
 - [x] Collapse niche choices and add Similar startups with sourced deals and editable warm-intro drafts.

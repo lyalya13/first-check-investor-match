@@ -1,4 +1,8 @@
 # First Check improvements
+- [ ] Inspect real Cala investor, company and deal fields.
+- [ ] Add sub-niches, evidence-based matches, region filters and investor profiles.
+- [ ] Add LinkedIn links, editable warm-intro drafts and expanded CSV export.
+- [ ] Refresh the real cached example and verify all tests and mobile/desktop flows.
 - [x] Add multi-category niche selection and example values.
 - [x] Query niches, merge matching deals, and preserve niche provenance.
 - [x] Add amount guidance, filters, ticket badges, and beginner guide.

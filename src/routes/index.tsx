@@ -215,7 +215,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return <div className="space-y-2"><Label className="text-xs font-normal text-muted-foreground">{label}</Label>{children}{hint && <p className="text-xs leading-5 text-muted-foreground">{hint}</p>}</div>;
 }
 
-const STEPS = ["Searching funding rounds since 2024…", "Grouping deals by investor…", "Checking each investor's recent activity…"];
 const FOUNDER_TIPS = ["Angels usually decide faster than funds", "A warm intro works better than a cold email", "Investors who led a round are the ones to talk to first", "Look for investors who invested in the last 12 months"];
 function LoadingState({ enriching = false, niches = [] }: { enriching?: boolean; niches?: string[] }) {
   const [elapsed, setElapsed] = useState(0);

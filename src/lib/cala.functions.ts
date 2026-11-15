@@ -6,7 +6,7 @@ import { toDeals, mergeDeals, responseRows, investorType, investorProfile } from
 import { detailedRegionOf, type InvestorRegion } from "./matching";
 import { searchCacheKey, resolveCachedSearch } from "./search-cache";
 import { EXAMPLE } from "./example";
-import { CALA_TIMEOUT_MS, CALA_SEARCH_CONCURRENCY, parallelMap, retryCala, consolidateProfiles } from "./search-performance";
+import { CALA_TIMEOUT_MS, retryCala, consolidateProfiles } from "./search-performance";
 import { combinedDealQueries } from "./deal-query";
 import { calaSearchError } from "./cala-errors";
 
@@ -117,6 +117,8 @@ export const findInvestors = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("[cala] Structured query failed", (e as Error).message);
         if ((e as Error).message === "MISSING_KEY") throw e;
+        // Prefer an older cached result over an empty one when the provider fails.
+        if (cached) throw new Error(/timeout|aborted/i.test((e as Error).message) ? "CALA_TIMEOUT" : (e as Error).message === "Cala 429" ? "CALA_RATE_LIMIT" : "CALA_UNAVAILABLE");
         if ((e as Error).message === "Cala 429") rateLimited = true;
         if (/timeout|aborted/i.test((e as Error).message)) timedOut = true;
         partial = true;

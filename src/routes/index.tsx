@@ -11,8 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { REGIONS, filterByRegion, scoreMatch, topNiches, recentDeals, introDeals, linkedinLink, introMessage, safeUrl, detailedRegionOf, filterBusinessModel, businessModels, type RegionFilter } from "@/lib/matching";
-import { findInvestors, enrichInvestor, finishInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
-import { progressiveMap } from "@/lib/search-performance";
+import { findInvestors, enrichInvestor, extendInvestorSearch, draftMessage, type FounderInput, type InvestorResult } from "@/lib/cala.functions";
 import { preserveArrivedResults } from "@/lib/search-state";
 import { MultiLocationPicker } from "@/components/multi-location-picker";
 import { IndustryPicker } from "@/components/industry-picker";
@@ -45,7 +44,7 @@ type Result = Awaited<ReturnType<typeof findInvestors>>;
 function Index() {
   const find = useServerFn(findInvestors);
   const enrich = useServerFn(enrichInvestor);
-  const finish = useServerFn(finishInvestorSearch);
+  const extend = useServerFn(extendInvestorSearch);
   const [form, setForm] = useState<FounderInput>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
@@ -86,22 +85,11 @@ function Index() {
       const grouped = await find({ data: input });
       if (run !== searchRun.current) return;
       setResult(grouped);
-      if (grouped.ok && grouped.enrichmentPending) {
-        await progressiveMap(grouped.investors, async (inv) => {
-          try { return await enrich({ data: { founder: input, name: inv.name } }); }
-          catch { return { ok: false as const }; }
-        }, (update, inv) => {
-          if (run !== searchRun.current) return;
-          setResult((current) => current?.ok ? { ...current,
-            partial: current.partial || !update.ok || (update.ok && update.partial),
-            investors: current.investors.map((row) => row.name === inv.name && update.ok ? update.investor : row),
-          } : current);
-        }, () => run === searchRun.current);
+      if (grouped.ok && grouped.fallbackPending) {
+        const more = await extend({ data: input }).catch(() => null);
         if (run !== searchRun.current) return;
-        await finish({ data: input }).catch(() => {
-          if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, partial: true } : current);
-        });
-        if (run === searchRun.current) setResult((current) => current?.ok ? { ...current, enrichmentPending: false } : current);
+        setResult((current) => more?.ok ? { ...more, cached: false, stale: false, fetchedAt: new Date().toISOString() } as Result
+          : current?.ok && current.dealCount ? { ...current, partial: true, fallbackPending: false } : (more ?? current));
       }
       console.info("[First Check timing] search", { niches: input.niches.length, elapsedMs: Math.round(performance.now() - started), cached: grouped.ok && grouped.cached });
     }
@@ -240,15 +228,30 @@ function SourceLink({ url, label = "source" }: { url?: string | undefined; label
   return <a href={verified} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary underline-offset-2 hover:underline">{label}<ExternalLink className="size-3" /></a>;
 }
 
-function InvestorCard({ inv, founder, query, starred, onStar, message, onMessage, savedPeople, onSavePerson, onCycleStatus }: {
+function InvestorCard({ inv: rawInv, founder, query, starred, onStar, message, onMessage, savedPeople, onSavePerson, onCycleStatus }: {
   onCycleStatus: (id: string) => void;
   savedPeople: SavedPerson[]; onSavePerson: (person: SavedPerson) => void;
   inv: InvestorResult; founder: FounderInput; query?: string | undefined; starred: boolean; onStar: () => void; message?: string | undefined; onMessage: (m: string) => void;
 }) {
-  const savedInvestor = savedPeople.find((person) => person.id === personId("investor", inv.name));
+  const [profileState] = [null];
+  void profileState;
+  const savedInvestor = savedPeople.find((person) => person.id === personId("investor", rawInv.name));
   const draft = useServerFn(draftMessage);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const enrich = useServerFn(enrichInvestor);
+  const [profile, setProfile] = useState<InvestorResult | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const toggleExpanded = () => {
+    setExpanded(!expanded);
+    // Profile details are fetched only on first expand, never upfront for all investors.
+    if (!expanded && !profile && !inv.summary && !profileLoading) {
+      setProfileLoading(true);
+      enrich({ data: { founder: { ...founder, website: founder.website || undefined }, name: rawInv.name } })
+        .then((r) => { if (r.ok) setProfile({ ...r.investor, active: rawInv.active }); })
+        .catch(() => {}).finally(() => setProfileLoading(false));
+    }
+  };
   const [drafting, setDrafting] = useState(false);
   const [err, setErr] = useState("");
   const [modal, setModal] = useState(false);
